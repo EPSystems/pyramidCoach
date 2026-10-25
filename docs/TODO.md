@@ -55,7 +55,7 @@ Supabase's built-in mailer only sends to project team members and is heavily rat
 - [ ] Store listing: screenshots, description, privacy policy URL, data-safety form
 
 ## Human setup checklist — open sign-up (`docs/AUTH_PLAN.md`)
-Dashboard steps the code can't do (§3.3). Do them before deploying, then apply the `20261025150000_remove_invite_only` migration to the cloud project (§4.6).
+Dashboard steps the code can't do (§3.3). Do them before deploying, then apply the `20261025151754_remove_invite_only` migration to the cloud project (§4.6).
 - [ ] **Resend:** domain verified and SMTP set in Supabase (step 3) — required before email sign-up goes live
 - [ ] **Google Cloud Console:** OAuth consent screen (External; app name, support email, scopes `openid email profile`; **publish to Production**) → OAuth client *Web application*: JS origin `https://pyramid-coach.vercel.app`; redirect URIs `https://kupbxizdkpxnnfsuamrl.supabase.co/auth/v1/callback` and `http://127.0.0.1:54321/auth/v1/callback` (local)
 - [ ] **Supabase → Auth → Providers:** Google enabled with the client ID + secret · Email: **Confirm email ON**, email sign-up on
