@@ -1,0 +1,19 @@
+// Public engine API (Section 6.0). Pure, deterministic functions only.
+export { generateBlock, exposuresFor, incrementFor } from './block';
+export { suggestNextSet, suggestNextSession, nudgeLoad } from './progression';
+export { weeklyReview, autofillReview, reviewWeekFor, localSoreMuscles } from './fatigue';
+export { detectPlateaus } from './plateau';
+export { generateSession, EQUIPMENT_PRESETS } from './generator';
+export { applyProposal, validateProposal, PAYLOAD_SCHEMAS, deloadDiff } from './proposals';
+export { inferTrainingStatus, statusFromYears } from './status';
+export { nutritionTargets, applyKcalChange, phaseForGoal, sportKcalPerDay, defaultMultiplier, sessionKcalFromRpe } from './nutrition';
+export { nutritionReview } from './nutrition-review';
+export { weeklyAverages, runningAverage, ratePctPerWeek, trendDirection } from './trend';
+export { e1rm, loadAtRpe, e1rmToLoad, bestRecentE1rm } from './e1rm';
+export { fractionalSets, setCounts, loggedMuscleSets } from './counting';
+export { computeTargets } from './volume';
+export { sportTrims, hardSportSessionsPerWeek } from './sports';
+export { substitutionsFor, isFeasible } from './selection';
+export { formatRx, warmupRamp, showRirHint, prescribe } from './prescription';
+export { moveWarnings } from './schedule';
+export * from './types';
