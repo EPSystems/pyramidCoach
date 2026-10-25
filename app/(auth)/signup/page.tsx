@@ -25,6 +25,17 @@ export default async function SignupPage({ searchParams }: PageProps<'/signup'>)
         <GoogleButton next={next} />
         <OrDivider />
         <SignupForm />
+        <p className="text-muted-foreground text-xs leading-relaxed">
+          By creating an account you agree to the{' '}
+          <Link href="/terms" className="text-foreground underline underline-offset-4">
+            Terms
+          </Link>{' '}
+          and{' '}
+          <Link href="/privacy" className="text-foreground underline underline-offset-4">
+            Privacy policy
+          </Link>
+          .
+        </p>
         <p className="text-muted-foreground text-sm">
           Already have an account?{' '}
           <Link href={next ? `/login?next=${encodeURIComponent(next)}` : '/login'} className="text-foreground font-medium underline-offset-4 hover:underline">

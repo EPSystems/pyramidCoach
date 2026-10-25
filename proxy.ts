@@ -2,7 +2,8 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 // '/signup' also covers '/signup/check-email'. '/reset-password' stays protected: it needs the recovery session.
-const PUBLIC = ['/login', '/signup', '/forgot-password', '/callback', '/api/health', '/manifest.webmanifest'];
+// '/privacy' and '/terms' are open to everyone, signed in or not (Google OAuth consent screen links).
+const PUBLIC = ['/login', '/signup', '/forgot-password', '/callback', '/privacy', '/terms', '/api/health', '/manifest.webmanifest'];
 const SIGNED_OUT_ONLY = ['/login', '/signup'];
 
 export async function proxy(request: NextRequest) {

@@ -1,18 +1,7 @@
 // Auth flows (AUTH_PLAN §5.3 scenarios 2–10). Scenario 1 is the happy path in happy-path.spec.ts.
 // Requires `supabase start` (Mailpit on :54324). Each test uses its own fresh email.
 import { devices, expect, test } from '@playwright/test';
-import {
-  PASSWORD,
-  admin,
-  callbackLink,
-  completeOnboarding,
-  createConfirmedUser,
-  signIn,
-  signUp,
-  uniqueEmail,
-  userIdByEmail,
-  waitForMessages,
-} from './helpers';
+import { PASSWORD, admin, callbackLink, completeOnboarding, createConfirmedUser, signIn, signUp, uniqueEmail, userIdByEmail, waitForMessages } from './helpers';
 
 const WRONG = 'Email or password is incorrect.';
 
@@ -88,7 +77,11 @@ test('6. confirmation link opened in a fresh browser (Gmail in-app browser) stil
     const p2 = await other.newPage();
     await p2.goto(link);
     await expect(p2).toHaveURL(/onboarding/);
-    const { data } = await admin.from('profiles').select('role').eq('user_id', (await userIdByEmail(email))!).single();
+    const { data } = await admin
+      .from('profiles')
+      .select('role')
+      .eq('user_id', (await userIdByEmail(email))!)
+      .single();
     expect(data?.role).toBe('member');
   } finally {
     await other.close();
@@ -182,5 +175,31 @@ test('10. admin: no Invite section; owner removes a member who then cannot sign 
     await expect(p2.getByText(WRONG)).toBeVisible();
   } finally {
     await other.close();
+  }
+});
+
+test('11. /privacy and /terms are public and stay viewable once signed in', async ({ page }) => {
+  const pages = [
+    ['/privacy', 'Privacy policy'],
+    ['/terms', 'Terms of use'],
+  ] as const;
+  for (const [path, heading] of pages) {
+    const res = await page.goto(path);
+    expect(res?.status()).toBe(200);
+    await expect(page).toHaveURL(new RegExp(`${path}$`));
+    await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
+  }
+  await page.goto('/signup');
+  await expect(page.getByRole('link', { name: 'Privacy policy' })).toHaveAttribute('href', '/privacy');
+
+  // Signed in, the pages must render rather than bounce to /today.
+  const email = uniqueEmail('legal-in');
+  await createConfirmedUser(email);
+  await signIn(page, email);
+  await expect(page).toHaveURL(/onboarding/);
+  for (const [path, heading] of pages) {
+    await page.goto(path);
+    await expect(page).toHaveURL(new RegExp(`${path}$`));
+    await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
   }
 });

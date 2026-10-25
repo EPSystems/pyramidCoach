@@ -32,6 +32,7 @@ pnpm dev                          # http://localhost:3000
 | `SUPABASE_SERVICE_ROLE_KEY`                                                       | server only (seeds and tests; the app no longer uses it)                                                                              |
 | `OWNER_EMAIL`                                                                     | owner account (also seeded into `app_config`)                                                                                         |
 | `APP_URL`                                                                         | base URL for auth redirects (falls back to the request origin)                                                                        |
+| `NEXT_PUBLIC_CONTACT_EMAIL`                                                       | optional contact address shown on `/privacy` and `/terms` (without it they show a generic fallback, no mailto)                        |
 | `SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID`, `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET` | local only: Google OAuth client for `supabase start` (read by `supabase/config.toml`; production sets them in the Supabase dashboard) |
 
 ## Seeding

@@ -11,9 +11,18 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         </Link>
         {children}
       </div>
-      <p className="text-muted-foreground mt-10 text-xs leading-relaxed">
-        General training and nutrition guidance — not a substitute for a doctor or physiotherapist.
-      </p>
+      <footer className="text-muted-foreground mt-10 space-y-2 text-xs leading-relaxed">
+        <p>General training and nutrition guidance — not a substitute for a doctor or physiotherapist.</p>
+        <nav aria-label="Legal" className="flex gap-2">
+          <Link href="/terms" className="underline-offset-4 hover:underline">
+            Terms
+          </Link>
+          <span aria-hidden>·</span>
+          <Link href="/privacy" className="underline-offset-4 hover:underline">
+            Privacy
+          </Link>
+        </nav>
+      </footer>
     </main>
   );
 }
