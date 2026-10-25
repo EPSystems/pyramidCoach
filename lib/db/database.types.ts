@@ -131,20 +131,6 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
-                },"invites": {
-                  Row: {
-                    "accepted_at": string | null,"created_at": string | null,"email": string,"invited_by": string | null,"revoked_at": string | null
-                  }
-                  ComputedFields: never
-                  Insert: {
-                    "accepted_at"?: string | null,"created_at"?: string | null,"email": string,"invited_by"?: string | null,"revoked_at"?: string | null
-                  }
-                  Update: {
-                    "accepted_at"?: string | null,"created_at"?: string | null,"email"?: string,"invited_by"?: string | null,"revoked_at"?: string | null
-                  }
-                  Relationships: [
-                    
-                  ]
                 },"logged_sets": {
                   Row: {
                     "created_at": string | null,"exercise_id": string,"id": string,"is_warmup": boolean,"load_kg": number | null,"performed_on": string,"planned_exercise_id": string | null,"reps": number,"rir": number | null,"session_id": string | null,"set_index": number,"user_id": string
@@ -454,14 +440,11 @@ isOneToOne: false
               "display_name": string,"email": string,"joined": string,"last_active": string,"onboarded": boolean,"role": string,"user_id": string
             }[]
                            },
-"admin_revoke_user":
+"admin_remove_user":
 { Args: { "p_email": string }; Returns: undefined
                            },
 "delete_my_account":
 { Args: Record<PropertyKey, never>; Returns: undefined
-                           },
-"is_invited":
-{ Args: { "p_email": string }; Returns: boolean
                            },
 "is_owner":
 { Args: Record<PropertyKey, never>; Returns: boolean

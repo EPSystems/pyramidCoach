@@ -11,9 +11,8 @@ export default async function AdminPage() {
   const ctx = await requireOnboarded();
   if (!ctx.isOwner) notFound();
   const { supabase } = ctx;
-  const [{ data: users }, { data: invites }, { data: rules }, { data: sports }, { data: exercises }] = await Promise.all([
+  const [{ data: users }, { data: rules }, { data: sports }, { data: exercises }] = await Promise.all([
     supabase.rpc('admin_list_users'),
-    supabase.from('invites').select('*').order('created_at', { ascending: false }),
     supabase.from('rule_sources').select('*').order('id'),
     supabase.from('sports').select('id, name, lower_body_load, upper_body_load, eccentric_impact, conditioning').is('owner_user_id', null).order('name'),
     supabase.from('exercises').select('id, name, cues, mistakes').is('owner_user_id', null).order('name'),
@@ -24,7 +23,6 @@ export default async function AdminPage() {
       <div className="space-y-4 px-4 sm:px-6 lg:px-8">
         <AdminClient
           users={(users ?? []).map((u) => ({ email: u.email ?? '', name: u.display_name ?? '', role: u.role, joined: u.joined ? prettyDate(u.joined.slice(0, 10)) : '—', lastActive: u.last_active ? prettyDate(u.last_active.slice(0, 10)) : '—', onboarded: u.onboarded }))}
-          invites={(invites ?? []).map((i) => ({ email: i.email, accepted: !!i.accepted_at, revoked: !!i.revoked_at, created: prettyDate(i.created_at!.slice(0, 10)) }))}
           exercises={(exercises ?? []).map((e) => ({ id: e.id, name: e.name, cues: e.cues, mistakes: e.mistakes }))}
         />
         <section className="bg-card rounded-2xl border p-5">

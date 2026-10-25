@@ -1,7 +1,9 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-const PUBLIC = ['/login', '/callback', '/api/health', '/manifest.webmanifest'];
+// '/signup' also covers '/signup/check-email'. '/reset-password' stays protected: it needs the recovery session.
+const PUBLIC = ['/login', '/signup', '/forgot-password', '/callback', '/api/health', '/manifest.webmanifest'];
+const SIGNED_OUT_ONLY = ['/login', '/signup'];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -26,9 +28,10 @@ export async function proxy(request: NextRequest) {
     url.search = '';
     return NextResponse.redirect(url);
   }
-  if (user && path === '/login') {
+  if (user && SIGNED_OUT_ONLY.includes(path)) {
     const url = request.nextUrl.clone();
     url.pathname = '/today';
+    url.search = '';
     return NextResponse.redirect(url);
   }
   return response;

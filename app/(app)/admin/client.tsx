@@ -2,24 +2,20 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Mail, UserX } from 'lucide-react';
+import { UserX } from 'lucide-react';
 import { toast } from 'sonner';
-import { createInvite, revokeAccess, updateGlobalExercise } from '@/lib/actions/admin';
+import { removeUser, updateGlobalExercise } from '@/lib/actions/admin';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export function AdminClient({
   users,
-  invites,
   exercises,
 }: {
   users: { email: string; name: string; role: string; joined: string; lastActive: string; onboarded: boolean }[];
-  invites: { email: string; accepted: boolean; revoked: boolean; created: string }[];
   exercises: { id: string; name: string; cues: string[]; mistakes: string[] }[];
 }) {
-  const [email, setEmail] = useState('');
   const [pending, start] = useTransition();
   const router = useRouter();
   const [exId, setExId] = useState(exercises[0]?.id ?? '');
@@ -29,38 +25,6 @@ export function AdminClient({
 
   return (
     <>
-      <section className="bg-card rounded-2xl border p-5">
-        <h2 className="font-display text-2xl font-bold uppercase">Invite</h2>
-        <form
-          className="mt-3 flex flex-wrap gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            start(async () => {
-              const r = await createInvite(email);
-              if (!r.ok) toast.error(r.error);
-              else {
-                toast.success(`Invite sent to ${email}`);
-                setEmail('');
-                router.refresh();
-              }
-            });
-          }}
-        >
-          <Input type="email" required placeholder="friend@example.com" value={email} onChange={(e) => setEmail(e.target.value)} className="h-11 min-w-60 flex-1" aria-label="Email to invite" />
-          <Button type="submit" disabled={pending}>
-            <Mail /> Send invite
-          </Button>
-        </form>
-        <ul className="mt-4 divide-y text-sm">
-          {invites.map((i) => (
-            <li key={i.email} className="flex items-center justify-between gap-2 py-2">
-              <span className="truncate">{i.email}</span>
-              <span className="text-muted-foreground text-xs">{i.revoked ? 'revoked' : i.accepted ? 'joined' : `invited ${i.created}`}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
       <section className="bg-card rounded-2xl border p-5">
         <h2 className="font-display text-2xl font-bold uppercase">Users ({users.length})</h2>
         <p className="text-muted-foreground text-xs">Names and activity only — training and health data stay private to each user.</p>
@@ -82,15 +46,15 @@ export function AdminClient({
                   variant="destructive"
                   disabled={pending}
                   onClick={() => {
-                    if (!window.confirm(`Revoke ${u.email}? This deletes their account and data.`)) return;
+                    if (!window.confirm(`Remove ${u.email}? This deletes their account and data.`)) return;
                     start(async () => {
-                      const r = await revokeAccess(u.email);
+                      const r = await removeUser(u.email);
                       if (!r.ok) toast.error(r.error);
                       else router.refresh();
                     });
                   }}
                 >
-                  <UserX /> Revoke
+                  <UserX /> Remove user
                 </Button>
               )}
             </li>

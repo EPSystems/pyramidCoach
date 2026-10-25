@@ -19,7 +19,7 @@ Every judgment call made while building Pyramid Coach from `PyramidCoach_PLAN.md
 12. Plan materialisation is one Postgres function, `replace_future_plan` (security invoker, so RLS still applies), giving the "one transaction" of Section 6.14. Accepting proposals applies their diff with sequential RLS-checked writes.
 
 ## Auth
-13. Invite-only is enforced twice: a `before insert` trigger on `auth.users` (hard guarantee) and an `is_invited()` check in the login action (friendly error). The owner email from `app_config` is always allowed and becomes `owner`.
+13. ~~Invite-only is enforced twice: a `before insert` trigger on `auth.users` (hard guarantee) and an `is_invited()` check in the login action (friendly error). The owner email from `app_config` is always allowed and becomes `owner`.~~ **Superseded by 32–36 (2026-10-25, `docs/AUTH_PLAN.md`).**
 14. The owner admin list comes from the `admin_list_users()` function: names and activity only, never training/health data.
 
 ## Engine
@@ -40,3 +40,10 @@ Every judgment call made while building Pyramid Coach from `PyramidCoach_PLAN.md
 29. Readiness pill on Today is an APP heuristic: sleep ≥ 7 h, energy ≥ 3, stress ≤ 3, no pain.
 30. In-session suggestions (6.10) are computed when the logger opens from the latest history, rather than frozen at plan generation; logging them is the approval.
 31. "Why?" explanations reuse the rule registry's own-words summaries, with bespoke lines for the most common rules (`lib/knowledge/explanations.ts`). No book text anywhere.
+
+## Auth (open sign-up, 2026-10-25 — replaces 13; see `docs/AUTH_PLAN.md`)
+32. **Open sign-up.** Anyone can create an account with **Continue with Google** or **email + password** (≥ 8 chars, letters and digits; same rule in Supabase and zod). The `invites` table, `enforce_invite` trigger and `is_invited()` are dropped (`20261025150000_remove_invite_only`). Sign-in no longer sends an email, which also removes the per-login email rate-limit problem. The owner is still whoever matches `app_config.owner_email`; admin keeps the users list and **Remove user** (`admin_remove_user`).
+33. **A profile exists only after confirmation.** `handle_new_user` runs on `insert or update of email_confirmed_at` when it is set, instead of on every insert. Google users arrive confirmed and get a profile at once; email sign-ups get one when they click the link. Unconfirmed sign-ups have no app data and don't appear in Admin. `display_name` comes from Google's `full_name` when present.
+34. **Email links use `token_hash`, not PKCE.** The confirmation and recovery templates link to `/callback?token_hash=…&type=…`, which `verifyOtp` accepts in any browser. That matters on Android, where Gmail opens links in its own in-app browser that doesn't have the PKCE verifier cookie. Local `config.toml` uses the same templates (`supabase/templates/`).
+35. **Google is auto-linked by email.** Supabase links a Google identity to an existing user with the same *confirmed* email, so the owner's old magic-link account keeps its data when signing in with Google (or after setting a password via *Forgot password*).
+36. **No account enumeration.** Sign-up with a registered email shows the same "Confirm your email" screen; wrong password and unknown email get one message; forgot-password always answers "If an account exists…". Redirects only follow a same-site relative `next` (`safeNext`), and links are built from `APP_URL` or the request origin, never `localhost` in production.

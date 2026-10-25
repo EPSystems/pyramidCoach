@@ -3,7 +3,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: { alias: { '@': import.meta.dirname } },
   test: {
-    include: ['tests/engine/**/*.test.ts', 'tests/unit/**/*.test.ts', 'tests/integration/**/*.test.ts'],
+    include: ['tests/engine/**/*.test.ts', 'tests/auth/**/*.test.ts', 'tests/unit/**/*.test.ts', 'tests/integration/**/*.test.ts'],
     environment: 'node',
     coverage: {
       provider: 'v8',
