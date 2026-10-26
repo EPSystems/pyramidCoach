@@ -48,7 +48,7 @@ export function nutritionReview(state: WeighInState): { proposals: Proposal[]; w
     return { proposals: [], weeks, notes };
   }
   if (state.lastAdjustedOn && daysBetween(state.lastAdjustedOn, state.today) < NUTRITION.adjust.minDaysBetween) {
-    notes.push('Calories changed less than 2 weeks ago — waiting before judging again (N-ADJ-03).');
+    notes.push('Calories changed less than 2 weeks ago, so waiting before judging again (N-ADJ-03).');
     return { proposals: [], weeks, notes };
   }
   const reliable = weeks.filter((w) => !w.lowData);
@@ -83,7 +83,7 @@ export function nutritionReview(state: WeighInState): { proposals: Proposal[]; w
           notes,
         };
       }
-      notes.push('First-week check passed — weight moved in the right direction.');
+      notes.push('First-week check passed: weight moved in the right direction.');
     }
   }
 
@@ -121,7 +121,7 @@ export function nutritionReview(state: WeighInState): { proposals: Proposal[]; w
       };
     }
     if (loss > hi) {
-      return { proposals: [calorieProposal(state, step, `You're losing ${round1(loss)}% per week — faster than your ${target}% target. Slower loss protects muscle.`, ['N-ADJ-02', 'N-RAT-01'])], weeks, notes };
+      return { proposals: [calorieProposal(state, step, `You're losing ${round1(loss)}% per week, faster than your ${target}% target. Slower loss protects muscle.`, ['N-ADJ-02', 'N-RAT-01'])], weeks, notes };
     }
   } else if (state.phase === 'gain') {
     const monthly = rate * 4;
@@ -130,7 +130,7 @@ export function nutritionReview(state: WeighInState): { proposals: Proposal[]; w
       return { proposals: [calorieProposal(state, step, `You're gaining ${round1(monthly)}% per month, below the ${lo}–${hi}% range for a ${state.status} lifter.`, ['N-ADJ-02', 'N-RAT-02'])], weeks, notes };
     }
     if (monthly > hi) {
-      return { proposals: [calorieProposal(state, -step, `You're gaining ${round1(monthly)}% per month, above the ${lo}–${hi}% range — most extra weight would be fat.`, ['N-ADJ-02', 'N-RAT-02'])], weeks, notes };
+      return { proposals: [calorieProposal(state, -step, `You're gaining ${round1(monthly)}% per month, above the ${lo}–${hi}% range, so most extra weight would be fat.`, ['N-ADJ-02', 'N-RAT-02'])], weeks, notes };
     }
   } else {
     const drift = NUTRITION.adjust.maintainDriftPctPerWeek;
@@ -139,6 +139,6 @@ export function nutritionReview(state: WeighInState): { proposals: Proposal[]; w
       return { proposals: [calorieProposal(state, change, `At maintenance your weight drifted ${round1(rate)}% per week over 3 weeks.`, ['N-ADJ-06'])], weeks, notes };
     }
   }
-  notes.push('Your weight trend is on target — no change.');
+  notes.push('Your weight trend is on target. No change.');
   return { proposals: [], weeks, notes };
 }

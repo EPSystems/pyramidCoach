@@ -191,7 +191,7 @@ function CustomExerciseDialog() {
             </div>
           </div>
         ))}
-        <Textarea value={cues} onChange={(e) => setCues(e.target.value)} placeholder="Cues — one per line (optional)" />
+        <Textarea value={cues} onChange={(e) => setCues(e.target.value)} placeholder="Cues, one per line (optional)" />
         <DialogFooter>
           <Button
             disabled={pending || name.trim().length < 2 || !primary.length || !equipment.length}

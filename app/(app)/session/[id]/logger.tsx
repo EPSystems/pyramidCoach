@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Check, ChevronDown, EllipsisVertical, Flame, Minus, Plus, Repeat2, SkipForward, StickyNote, Timer, TrendingDown, TrendingUp, Trophy, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -20,6 +20,9 @@ import type { ExerciseMuscle, MuscleId } from '@/lib/engine/types';
 import { MUSCLE_SHORT } from '@/lib/knowledge/muscles';
 import { fmtLoad, fromDisplay, toDisplay, type Units } from '@/lib/utils/units';
 import { cn } from '@/lib/utils';
+import { createLogger } from '@/lib/log';
+
+const log = createLogger('session/logger');
 
 export interface LoggerExercise {
   plannedId: string;
@@ -184,21 +187,50 @@ function ExerciseCard({
   const nudgeAll = (dir: 1 | -1) =>
     setRows((prev) => prev.map((r) => (r.logged ? r : { ...r, load: nudgeLoad(r.load, ex.increment, dir) })));
 
+  // Set indexes with a save or delete in flight. The ref blocks a double tap before React re-renders; the state disables the button.
+  const inFlight = useRef(new Set<number>());
+  const [saving, setSaving] = useState<ReadonlySet<number>>(new Set());
+  const markSaving = (i: number, on: boolean) => {
+    if (on) inFlight.current.add(i);
+    else inFlight.current.delete(i);
+    setSaving(new Set(inFlight.current));
+  };
+
   async function toggle(i: number) {
+    if (inFlight.current.has(i)) return;
     const r = rows[i];
-    if (r.logged) {
-      patch(i, { logged: false });
-      const res = await deleteSet(ex.plannedId, i);
-      if (!res.ok) {
-        patch(i, { logged: true });
-        toast.error(res.error);
-      }
-      return;
+    markSaving(i, true);
+    try {
+      if (r.logged) await undoSet(i);
+      else await saveSet(i, r);
+    } finally {
+      markSaving(i, false);
     }
+  }
+
+  async function undoSet(i: number) {
+    patch(i, { logged: false });
+    // A thrown action (network drop, server crash) is treated like a failed result: revert and tell the user.
+    const res = await deleteSet(ex.plannedId, i).catch((e: unknown) => {
+      log.error('deleteSet threw', { plannedExerciseId: ex.plannedId, setIndex: i, err: e });
+      return { ok: false as const, error: 'Could not undo that set. Check your connection and try again.' };
+    });
+    if (!res.ok) {
+      log.warn('deleteSet failed', { plannedExerciseId: ex.plannedId, setIndex: i, error: res.error });
+      patch(i, { logged: true });
+      toast.error(res.error);
+    }
+  }
+
+  async function saveSet(i: number, r: Row) {
     patch(i, { logged: true });
     onLogged();
-    const res = await logSet({ sessionId, plannedExerciseId: ex.plannedId, exerciseId: ex.exerciseId, setIndex: i, loadKg: r.load, reps: r.reps, rir: r.rir, rx: ex.rx, increment: ex.increment });
+    const res = await logSet({ sessionId, plannedExerciseId: ex.plannedId, exerciseId: ex.exerciseId, setIndex: i, loadKg: r.load, reps: r.reps, rir: r.rir, rx: ex.rx, increment: ex.increment }).catch((e: unknown) => {
+      log.error('logSet threw', { sessionId, plannedExerciseId: ex.plannedId, setIndex: i, err: e });
+      return { ok: false as const, error: 'Could not save that set. Check your connection and try again.', data: undefined };
+    });
     if (!res.ok) {
+      log.warn('logSet failed', { sessionId, plannedExerciseId: ex.plannedId, setIndex: i, error: res.error });
       patch(i, { logged: false });
       toast.error(res.error);
       return;
@@ -228,7 +260,7 @@ function ExerciseCard({
             {ex.isSingle ? (ex.note ?? 'Top single') : formatRx({ sets: rows.length, ...ex.rx })} · rest {mmss(ex.restSeconds)}
           </p>
           <p className="num text-muted-foreground text-sm">
-            {ex.last ? `Last: ${fmtLoad(ex.last.sets[0]?.load, units)} × ${ex.last.sets.map((s) => s.reps).join(', ')}` : ex.suggestion.hint ?? 'First time — pick a weight you can control.'}
+            {ex.last ? `Last: ${fmtLoad(ex.last.sets[0]?.load, units)} × ${ex.last.sets.map((s) => s.reps).join(', ')}` : ex.suggestion.hint ?? 'First time: pick a weight you can control.'}
           </p>
         </div>
         <Why ruleIds={ex.ruleIds} className="mt-1" />
@@ -243,8 +275,18 @@ function ExerciseCard({
             <DropdownMenuItem
               onSelect={() =>
                 start(async () => {
+                  const added = rows.length;
                   setRows((prev) => [...prev, { ...(prev[prev.length - 1] ?? { load: ex.suggestion.load, reps: ex.suggestion.repsTarget, rir: ex.rx.rirMin }), logged: false }]);
-                  await addSetToExercise(ex.plannedId);
+                  const res = await addSetToExercise(ex.plannedId).catch((e: unknown) => {
+                    log.error('addSetToExercise threw', { plannedExerciseId: ex.plannedId, err: e });
+                    return { ok: false as const, error: 'Could not add a set. Check your connection and try again.' };
+                  });
+                  if (!res.ok) {
+                    log.warn('addSetToExercise failed', { plannedExerciseId: ex.plannedId, error: res.error });
+                    // Drop the optimistic row, unless the user already logged into it.
+                    setRows((prev) => (prev[added] && !prev[added].logged ? prev.filter((_, j) => j !== added) : prev));
+                    toast.error(res.error);
+                  }
                 })
               }
             >
@@ -253,8 +295,17 @@ function ExerciseCard({
             <DropdownMenuItem
               onSelect={() =>
                 start(async () => {
-                  setSkipped(!skipped);
-                  await skipExercise(ex.plannedId, !skipped);
+                  const next = !skipped;
+                  setSkipped(next);
+                  const res = await skipExercise(ex.plannedId, next).catch((e: unknown) => {
+                    log.error('skipExercise threw', { plannedExerciseId: ex.plannedId, skipped: next, err: e });
+                    return { ok: false as const, error: 'Could not update the exercise. Check your connection and try again.' };
+                  });
+                  if (!res.ok) {
+                    log.warn('skipExercise failed', { plannedExerciseId: ex.plannedId, skipped: next, error: res.error });
+                    setSkipped(!next);
+                    toast.error(res.error);
+                  }
                 })
               }
             >
@@ -299,8 +350,9 @@ function ExerciseCard({
 
       <ol className="mt-3 divide-y border-t">
         {rows.map((r, i) => (
-          <li key={i} className={cn('px-3 py-3 sm:px-4', r.logged && 'bg-volt/[0.06]')}>
-            <div className="flex items-center gap-2">
+          // Mobile: steppers on line 1, RIR + log button on line 2 (one line was ~390px wide and clipped the log button). sm+: log button returns to line 1.
+          <li key={i} className={cn('flex flex-wrap items-center gap-2 px-3 py-3 sm:px-4', r.logged && 'bg-volt/[0.06]')}>
+            <div className="flex min-w-0 basis-full items-center gap-2 sm:flex-1 sm:basis-auto">
               <span className="num text-muted-foreground w-5 shrink-0 text-center text-sm font-semibold">{i + 1}</span>
               <LoadInput key={`${r.load}-${units}`} value={r.load} units={units} step={ex.increment} disabled={r.logged} onChange={(v) => patch(i, { load: v })} />
               <span className="text-muted-foreground text-sm">×</span>
@@ -315,21 +367,22 @@ function ExerciseCard({
                   <Plus className="size-4" />
                 </button>
               </div>
-              <button
-                type="button"
-                onClick={() => toggle(i)}
-                disabled={skipped}
-                aria-pressed={r.logged}
-                aria-label={r.logged ? `Undo set ${i + 1}` : `Log set ${i + 1}`}
-                className={cn(
-                  'ml-auto grid size-12 shrink-0 place-items-center rounded-xl border-2 transition-all',
-                  r.logged ? 'bg-volt text-volt-ink border-volt pop' : 'border-volt/60 text-volt hover:bg-volt/10',
-                )}
-              >
-                <Check className="size-6" strokeWidth={3} />
-              </button>
             </div>
-            <div className="mt-2 flex items-center gap-1.5 pl-7">
+            <button
+              type="button"
+              onClick={() => void toggle(i)}
+              disabled={skipped || saving.has(i)}
+              aria-busy={saving.has(i)}
+              aria-pressed={r.logged}
+              aria-label={r.logged ? `Undo set ${i + 1}` : `Log set ${i + 1}`}
+              className={cn(
+                'order-3 ml-auto grid size-12 shrink-0 place-items-center rounded-xl border-2 transition-all sm:order-2',
+                r.logged ? 'bg-volt text-volt-ink border-volt pop' : 'border-volt/60 text-volt hover:bg-volt/10',
+              )}
+            >
+              <Check className="size-6" strokeWidth={3} />
+            </button>
+            <div className="order-2 flex items-center gap-1.5 sm:order-3 sm:basis-full sm:pl-7">
               <span className="stamp text-muted-foreground mr-1">RIR</span>
               {[0, 1, 2, 3, 4].map((v) => (
                 <button
@@ -361,7 +414,7 @@ function ExerciseCard({
 function LoadInput({ value, units, step, disabled, onChange }: { value: number | null; units: Units; step: number; disabled: boolean; onChange: (kg: number | null) => void }) {
   const [text, setText] = useState(value == null ? '' : String(toDisplay(value, units)));
   return (
-    <div className="flex items-center">
+    <div className="flex min-w-0 flex-1 items-center sm:flex-none">
       <button type="button" disabled={disabled} onClick={() => onChange(nudgeLoad(value ?? 0, step, -1))} className="bg-muted grid size-11 place-items-center rounded-l-lg disabled:opacity-40" aria-label="Less weight">
         <Minus className="size-4" />
       </button>
@@ -372,7 +425,7 @@ function LoadInput({ value, units, step, disabled, onChange }: { value: number |
         placeholder={units}
         onChange={(e) => setText(e.target.value)}
         onBlur={() => onChange(text.trim() === '' ? null : fromDisplay(Number(text), units))}
-        className="num h-11 w-16 rounded-none border-x-0 px-1 text-center text-lg font-semibold disabled:opacity-100"
+        className="num h-11 min-w-0 flex-1 rounded-none sm:w-16 sm:flex-none border-x-0 px-1 text-center text-lg font-semibold disabled:opacity-100"
         aria-label={`Weight in ${units}`}
       />
       <button type="button" disabled={disabled} onClick={() => onChange(nudgeLoad(value ?? 0, step, 1))} className="bg-muted grid size-11 place-items-center rounded-r-lg disabled:opacity-40" aria-label="More weight">
@@ -429,6 +482,7 @@ function SwapDialog({ open, onOpenChange, ex, onDone }: { open: boolean; onOpenC
 
 function NoteDialog({ open, onOpenChange, ex }: { open: boolean; onOpenChange: (o: boolean) => void; ex: LoggerExercise }) {
   const [note, setNote] = useState(ex.isSingle ? '' : (ex.note ?? ''));
+  const [saving, setSaving] = useState(false);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -438,8 +492,16 @@ function NoteDialog({ open, onOpenChange, ex }: { open: boolean; onOpenChange: (
         <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Seat height, grip, how it felt…" />
         <DialogFooter>
           <Button
+            disabled={saving}
             onClick={async () => {
-              await saveExerciseNote(ex.plannedId, note);
+              setSaving(true);
+              const res = await saveExerciseNote(ex.plannedId, note).catch((e: unknown) => {
+                log.error('saveExerciseNote threw', { plannedExerciseId: ex.plannedId, err: e });
+                return { ok: false as const, error: 'Could not save the note. Check your connection and try again.' };
+              });
+              setSaving(false);
+              // Keep the dialog open on failure so the typed note isn't lost.
+              if (!res.ok) return void toast.error(res.error);
               toast.success('Note saved');
               onOpenChange(false);
             }}
@@ -545,7 +607,10 @@ function FinishDialog({
             disabled={pending}
             onClick={() =>
               start(async () => {
-                if (Object.keys(sore).length) await addSoreness(sore);
+                if (Object.keys(sore).length) {
+                  const s = await addSoreness(sore);
+                  if (!s.ok) log.warn('addSoreness failed, finishing anyway', { sessionId: session.id, error: s.error });
+                }
                 const r = await finishSession(session.id);
                 if (!r.ok) return void toast.error(r.error);
                 toast.success('Session saved. Nice work.');

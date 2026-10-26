@@ -4,8 +4,16 @@ import { expireProposals } from '@/lib/server/proposals';
 
 export default async function AppLayout({ children }: LayoutProps<'/'>) {
   const ctx = await requireOnboarded();
-  await expireProposals(ctx.supabase, ctx.user.id, ctx.today);
-  const { count } = await ctx.supabase.from('proposals').select('id', { count: 'exact', head: true }).eq('user_id', ctx.user.id).eq('status', 'pending');
+  // Run in parallel: the count applies the same cutoff as expireProposals (expires_on < today), so it never counts what is being expired.
+  const [, { count }] = await Promise.all([
+    expireProposals(ctx.supabase, ctx.user.id, ctx.today),
+    ctx.supabase
+      .from('proposals')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', ctx.user.id)
+      .eq('status', 'pending')
+      .or(`expires_on.is.null,expires_on.gte.${ctx.today}`),
+  ]);
   return (
     <div className="relative z-10 flex min-h-dvh">
       <Sidebar proposals={count ?? 0} isOwner={ctx.isOwner} />

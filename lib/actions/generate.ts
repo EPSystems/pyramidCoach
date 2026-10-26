@@ -10,6 +10,9 @@ import { TRACKED_MUSCLES, type MuscleId, type TrackedMuscle } from '@/lib/engine
 import { formatRx } from '@/lib/engine/prescription';
 import { getUserContext, loadExercises, mapSet } from '@/lib/server/context';
 import { todayIn } from '@/lib/utils/dates';
+import { createLogger } from '@/lib/log';
+
+const log = createLogger('actions/generate');
 
 const GenInput = z.object({
   minutes: z.union([z.literal(20), z.literal(30), z.literal(45), z.literal(60), z.literal(75)]),
@@ -34,17 +37,27 @@ async function build(raw: GenFormInput) {
   const { supabase, user } = ctx;
   if (!ctx.settings) throw new Error('Finish onboarding first');
   const today = todayIn(ctx.profile?.timezone ?? 'Europe/Sofia');
-  const [exercises, { data: setRows }, { data: checkins }, { data: block }] = await Promise.all([
+  log.debug('build', { userId: user.id, minutes: input.minutes, preset: input.preset, readiness: input.readiness });
+  const [exercises, setsRes, checkinsRes, blockRes] = await Promise.all([
     loadExercises(supabase),
     supabase.from('logged_sets').select('*').eq('user_id', user.id).gte('performed_on', addDays(today, -112)),
     supabase.from('checkins').select('day, soreness').eq('user_id', user.id).lte('day', today).order('day', { ascending: false }).limit(3),
     supabase.from('blocks').select('id, starts_on').eq('user_id', user.id).eq('status', 'active').maybeSingle(),
   ]);
+  // A failed read must not be treated as "no history": saveWorkout writes what is generated from it.
+  const { data: setRows, error: setsErr } = log.db('select logged_sets', setsRes, { userId: user.id });
+  const { data: checkins, error: checkinsErr } = log.db('select checkins', checkinsRes, { userId: user.id });
+  const { data: block, error: blockErr } = log.db('select active block', blockRes, { userId: user.id });
+  const readErr = setsErr ?? checkinsErr ?? blockErr;
+  if (readErr) throw new Error(readErr.message);
   const exMap = new Map(exercises.map((e) => [e.id, e]));
   const sets = (setRows ?? []).map(mapSet);
   const weekStart = mondayOf(today);
   const weekIdx = block ? Math.max(0, Math.floor((Date.parse(weekStart) - Date.parse(block.starts_on)) / 604800000)) : 0;
-  const { data: tRows } = block ? await supabase.from('weekly_targets').select('muscle_id, target_sets').eq('block_id', block.id).eq('week_index', weekIdx) : { data: [] };
+  const { data: tRows, error: tErr } = block
+    ? log.db('select weekly_targets', await supabase.from('weekly_targets').select('muscle_id, target_sets').eq('block_id', block.id).eq('week_index', weekIdx), { blockId: block.id, weekIdx })
+    : { data: [], error: null };
+  if (tErr) throw new Error(tErr.message);
   const targets = Object.fromEntries(TRACKED_MUSCLES.map((m) => [m, Number(tRows?.find((t) => t.muscle_id === m)?.target_sets ?? 10)])) as Record<TrackedMuscle, number>;
   const logged = loggedMuscleSets(sets, exMap, weekStart);
   const last48 = loggedMuscleSets(sets, exMap, addDays(today, -2), 3);
@@ -87,6 +100,7 @@ export async function previewWorkout(raw: GenFormInput): Promise<{ ok: boolean; 
       },
     };
   } catch (e) {
+    log.error('previewWorkout failed', { err: e });
     return { ok: false, error: e instanceof Error ? e.message : 'Could not generate' };
   }
 }
@@ -94,8 +108,12 @@ export async function previewWorkout(raw: GenFormInput): Promise<{ ok: boolean; 
 /** Saves the generated session for today (kind 'generated'); it counts toward weekly volume like any session. */
 export async function saveWorkout(raw: GenFormInput, startNow: boolean) {
   const { gen, today, ctx, weekIdx, block } = await build(raw);
-  if (!gen.exercises.length) throw new Error('Nothing to generate with these settings');
+  if (!gen.exercises.length) {
+    log.warn('saveWorkout: generator returned no exercises', { minutes: raw.minutes, preset: raw.preset });
+    throw new Error('Nothing to generate with these settings');
+  }
   const { supabase, user } = ctx;
+  log.debug('saveWorkout', { userId: user.id, exercises: gen.exercises.length, startNow });
   const { data: s, error } = await supabase
     .from('planned_sessions')
     .insert({
@@ -113,7 +131,10 @@ export async function saveWorkout(raw: GenFormInput, startNow: boolean) {
     })
     .select('id')
     .single();
-  if (error) throw error;
+  if (error) {
+    log.error('insert planned_sessions (generated) failed', { userId: user.id, err: error });
+    throw error;
+  }
   const { error: eErr } = await supabase.from('planned_exercises').insert(
     gen.exercises.map((e) => ({
       session_id: s.id,
@@ -132,7 +153,13 @@ export async function saveWorkout(raw: GenFormInput, startNow: boolean) {
       rule_ids: e.ruleIds,
     })),
   );
-  if (eErr) throw eErr;
+  if (eErr) {
+    // The session row above is already saved; delete it so no empty generated session is left behind.
+    log.error('insert planned_exercises (generated) failed', { sessionId: s.id, count: gen.exercises.length, err: eErr });
+    const { error: delErr } = log.db('delete empty planned_sessions (generated)', await supabase.from('planned_sessions').delete().eq('id', s.id).eq('user_id', user.id), { sessionId: s.id });
+    if (delErr) revalidatePath('/', 'layout');
+    throw new Error('Could not save the workout. Please try again.');
+  }
   revalidatePath('/', 'layout');
   redirect(startNow ? `/session/${s.id}` : '/today');
 }

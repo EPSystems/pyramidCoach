@@ -61,11 +61,11 @@ export const RULE_LIST: RuleDef[] = [
   r('T-INT-01', 'MSP-T', '231', 'Muscle grows from roughly 4–30 rep loads when sets end close to failure; the lower the reps, the more reps you can leave in the tank. Strength needs heavy loads (1–8 reps).'),
   r('T-INT-02', 'MSP-T', '231, 235', 'Hypertrophy sets need at least 4 reps. Avoid going to complete failure on free-weight squats, hinges and presses.'),
   r('T-INT-03', 'MSP-T', '235', 'Each exercise type has its own rep and effort range: heavy lower-body free weights 4–8 reps at 2–4 RIR, presses and leg machines 4–12, machines and rows 6–15, isolation 8–20 close to failure.'),
-  r('T-INT-04', 'MSP-T', '125–126, 236–237', 'Vary rep ranges — within a session, between sessions or between weeks — but do not spend more than about 3 weeks outside hypertrophy ranges.'),
+  r('T-INT-04', 'MSP-T', '125–126, 236–237', 'Vary rep ranges (within a session, between sessions or between weeks), but do not spend more than about 3 weeks outside hypertrophy ranges.'),
   r('T-INT-05', 'MSP-T', '18', 'When your sport comes first, every lifting set stops one rep further from failure and the heaviest rep range on leg compounds is dropped.'),
   r('T-RIR-01', 'MSP-T', '50–51', 'RPE 10 = 0 reps in reserve, 9 = 1, 8 = 2, 7 = 3. Most people underestimate how many reps they have left by about one, especially on high-rep sets.'),
   // Rest, tempo, warm-up
-  r('T-RST-01', 'MSP-T', '201', 'For strength main lifts rest until ready — at least 2 minutes, usually about 3.'),
+  r('T-RST-01', 'MSP-T', '201', 'For strength main lifts rest until ready: at least 2 minutes, usually about 3.'),
   r('T-RST-02', 'MSP-T', '201', 'For hypertrophy rest at least 90 seconds on average; longer for big lower-body lifts.'),
   r('T-RST-03', 'MSP-T', '201', 'Supersets and drop sets save time; a four-drop drop set counts as about three normal sets.'),
   r('T-TMP-01', 'MSP-T', '215–216', 'Lower the weight under control in about 1–4 seconds and lift with intent; any lifting speed works as long as the set gets close to failure.'),
@@ -99,15 +99,15 @@ export const RULE_LIST: RuleDef[] = [
   r('S-04', 'MSP-T', '19', 'Extra conditioning should be low-impact (bike, rower, swimming), short and hard or under an hour, after lifting or on other days.'),
   r('S-05', 'MSP-T', '18', 'When the sport comes first, leg muscles are capped at 8 sets, sets stop further from failure and high-risk lifts are avoided.'),
   r('S-06', 'MSP-N', '45–46', 'Energy burned in sports is added to your calorie target.'),
-  // Nutrition — phase
+  // Nutrition: phase
   r('N-PHS-01', 'APP', undefined, 'Your nutrition phase follows your goal (gain, maintain or lose) and you can override it.'),
   r('N-PHS-02', 'MSP-N', '35', 'Spend at least four times as long gaining or maintaining as cutting.'),
-  r('N-PHS-03', 'MSP-N', '33, 56–58', 'Muscle can be built at maintenance or in a small deficit, especially by newer lifters — higher body fat does not stop gains.'),
+  r('N-PHS-03', 'MSP-N', '33, 56–58', 'Muscle can be built at maintenance or in a small deficit, especially by newer lifters; higher body fat does not stop gains.'),
   // Maintenance
   r('N-MNT-01', 'MSP-N', '28', 'Resting energy use is roughly 22 kcal per kg of bodyweight per day.'),
   r('N-MNT-02', 'MSP-N', '29', 'Multiply by an activity factor for lifters: sedentary 1.3–1.6, lightly active 1.5–1.8, active 1.7–2.0, very active 1.9–2.2.'),
   r('N-MNT-03', 'MSP-N', '28–29, 186', 'Any maintenance estimate is rough; adjusting from your weight trend is what makes it accurate.'),
-  r('N-MNT-04', 'APP', undefined, 'Your lifestyle factor excludes sports — those are added separately so they are not counted twice.'),
+  r('N-MNT-04', 'APP', undefined, 'Your lifestyle factor excludes sports; those are added separately so they are not counted twice.'),
   // Rate
   r('N-RAT-01', 'MSP-N', '18, 36–37', 'Lose 0.5–1% of bodyweight per week; leaner people should stay near 0.5%.'),
   r('N-RAT-02', 'MSP-N', '51–52', 'Gain per month: novices 1–2% of bodyweight, intermediates 0.5–1.5%, advanced up to 0.5%.'),
@@ -127,7 +127,7 @@ export const RULE_LIST: RuleDef[] = [
   r('N-WGT-01', 'MSP-N', '18–19, 183', 'Weigh in the morning after the bathroom and before eating. Daily swings of 1–2% are normal.'),
   r('N-WGT-02', 'MSP-N', '19, 183–184', 'Use the weekly average. A week needs at least 3 weigh-ins including a weekend day to be trusted.'),
   r('N-WGT-03', 'MSP-N', '186', 'A 14–21-day running average shows the long-term trend.'),
-  r('N-WGT-04', 'MSP-N', '184', 'Ignore the first week of a new gain or loss phase for rate decisions — water and food volume shift.'),
+  r('N-WGT-04', 'MSP-N', '184', 'Ignore the first week of a new gain or loss phase for rate decisions: water and food volume shift.'),
   // Adjustments
   r('N-ADJ-01', 'MSP-N', '186–187', 'If weight did not move in the right direction in week one of a phase, adjust the activity factor by 0.2.'),
   r('N-ADJ-02', 'MSP-N', '184, 187', 'Judge rate over 2 weeks when losing (3 if light) and 3–4 weeks when gaining; adjust by 100–200 kcal if off target.'),

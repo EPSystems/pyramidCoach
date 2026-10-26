@@ -8,7 +8,7 @@ export function LegalShell({ kicker, title, children }: { kicker: string; title:
   return (
     <main className="relative z-10 mx-auto min-h-dvh max-w-2xl px-5 py-10">
       <div className="rise space-y-8">
-        <Link href="/login" aria-label="Pyramid Coach — sign in" className="inline-block">
+        <Link href="/login" aria-label="Pyramid Coach: sign in" className="inline-block">
           <PyramidMark className="size-12" />
         </Link>
         <div>

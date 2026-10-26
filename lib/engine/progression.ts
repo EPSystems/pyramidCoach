@@ -46,7 +46,7 @@ export function suggestNextSession(
       load: null,
       repsTarget: repMid,
       ruleIds: ['T-PRG-01'],
-      hint: `Pick a weight you could lift about ${repMid + rx.rirMax} times — stop with ${rx.rirMax} reps in the tank.`,
+      hint: `Pick a weight you could lift about ${repMid + rx.rirMax} times, stopping with ${rx.rirMax} reps in the tank.`,
     };
   }
   const rir = first.rir ?? rx.rirMax;

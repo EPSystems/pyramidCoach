@@ -7,7 +7,7 @@ export const fromDisplay = (v: number, units: Units): number => (units === 'kg' 
 
 export function fmtLoad(kg: number | null | undefined, units: Units): string {
   const v = toDisplay(kg, units);
-  if (v == null) return '—';
+  if (v == null) return '-';
   return `${Number.isInteger(v) ? v : v.toFixed(units === 'kg' ? (Math.round(v * 10) === v * 10 ? 1 : 2) : 1)} ${units}`;
 }
-export const fmtNum = (v: number | null | undefined, digits = 0) => (v == null ? '—' : v.toLocaleString('en-GB', { maximumFractionDigits: digits, minimumFractionDigits: 0 }));
+export const fmtNum = (v: number | null | undefined, digits = 0) => (v == null ? '-' : v.toLocaleString('en-GB', { maximumFractionDigits: digits, minimumFractionDigits: 0 }));

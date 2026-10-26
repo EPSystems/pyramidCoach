@@ -1,10 +1,15 @@
 import { formatInTimeZone } from 'date-fns-tz';
+import { createLogger } from '@/lib/log';
+
+const log = createLogger('utils/dates');
 
 /** "Today" in the user's timezone as an ISO date (all day/week logic uses this, Section 11). */
 export function todayIn(tz: string, now: Date = new Date()): string {
   try {
     return formatInTimeZone(now, tz, 'yyyy-MM-dd');
-  } catch {
+  } catch (e) {
+    // Every day/week boundary for this user is now off by their real UTC offset.
+    log.warn('invalid timezone, falling back to Europe/Sofia', { tz, err: e });
     return formatInTimeZone(now, 'Europe/Sofia', 'yyyy-MM-dd');
   }
 }

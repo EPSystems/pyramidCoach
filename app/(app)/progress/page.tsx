@@ -120,11 +120,11 @@ export default async function ProgressPage() {
                   {shownLifts.map((l) => (
                     <tr key={l.lift}>
                       <td className="py-1.5">{LIFT_NAMES[l.lift]}</td>
-                      <td>{l.baseline ?? '—'}</td>
-                      <td>{l.latest ?? '—'}</td>
-                      <td>{l.best ?? '—'}</td>
+                      <td>{l.baseline ?? '-'}</td>
+                      <td>{l.latest ?? '-'}</td>
+                      <td>{l.best ?? '-'}</td>
                       <td className={l.latest != null && l.baseline != null && l.latest >= l.baseline ? 'text-ok' : ''}>
-                        {l.latest != null && l.baseline != null ? `${l.latest - l.baseline >= 0 ? '+' : ''}${Math.round((l.latest - l.baseline) * 10) / 10}` : '—'}
+                        {l.latest != null && l.baseline != null ? `${l.latest - l.baseline >= 0 ? '+' : ''}${Math.round((l.latest - l.baseline) * 10) / 10}` : '-'}
                       </td>
                     </tr>
                   ))}
@@ -153,7 +153,7 @@ export default async function ProgressPage() {
                   <p className="flex justify-between text-xs">
                     <span className="font-medium">{MUSCLE_SHORT[m]}</span>
                     <span className="num text-muted-foreground">
-                      {Math.round(thisWeek * 10) / 10}/{t ? Number(t.target_sets) : '—'}
+                      {Math.round(thisWeek * 10) / 10}/{t ? Number(t.target_sets) : '-'}
                     </span>
                   </p>
                   <VolumeMini data={vol.map((v) => ({ week: v.w, sets: Math.round(v.m[m] * 10) / 10 }))} target={t ? Number(t.target_sets) : null} max={maxVol} label={MUSCLE_SHORT[m]} />

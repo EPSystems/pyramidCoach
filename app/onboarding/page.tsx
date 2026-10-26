@@ -10,7 +10,7 @@ export default async function OnboardingPage() {
   if (ctx.profile?.onboarded_at) redirect('/today');
   const { data: sports } = await ctx.supabase.from('sports').select('*').order('name');
   const isOwner = ctx.profile?.role === 'owner';
-  // Appendix F — Emo's profile import: pre-filled, confirmed step by step.
+  // Appendix F (Emo's profile import): pre-filled, confirmed step by step.
   const prefill: Prefill | undefined = isOwner
     ? {
         displayName: 'Emo',

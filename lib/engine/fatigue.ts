@@ -26,7 +26,7 @@ export function autofillReview(state: WeeklyState): ReviewAutofill {
   const energy7 = avgOf(week, (c) => c.energy);
   const skipped = state.sessionsThisWeek.filter((s) => s.status === 'skipped' || (s.status === 'planned' && s.date < state.today)).length;
   answers.dreading_gym = (energy7 != null && energy7 <= REVIEW.energyDreadThreshold) || skipped >= REVIEW.skippedDreadThreshold;
-  evidence.dreading_gym = `Energy avg ${energy7 == null ? '—' : round1(energy7)}/5 · ${skipped} session${skipped === 1 ? '' : 's'} skipped`;
+  evidence.dreading_gym = `Energy avg ${energy7 == null ? '-' : round1(energy7)}/5 · ${skipped} session${skipped === 1 ? '' : 's'} skipped`;
 
   // Sleep worse than normal?
   const sleep7 = avgOf(week, (c) => c.sleepHours);

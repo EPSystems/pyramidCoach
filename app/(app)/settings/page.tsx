@@ -31,7 +31,8 @@ export default async function SettingsPage() {
           }}
           profile={{
             displayName: profile.display_name ?? '',
-            sex: (profile.sex ?? 'unspecified') as never,
+            // Older rows may hold null or 'unspecified': show nothing selected until the user picks one.
+            sex: profile.sex === 'male' || profile.sex === 'female' ? profile.sex : null,
             heightCm: profile.height_cm,
             bodyFatPct: profile.body_fat_pct,
             units: profile.units as never,

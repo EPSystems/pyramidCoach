@@ -22,7 +22,7 @@ export default async function AdminPage() {
       <PageHeader kicker="Owner" title="Admin" />
       <div className="space-y-4 px-4 sm:px-6 lg:px-8">
         <AdminClient
-          users={(users ?? []).map((u) => ({ email: u.email ?? '', name: u.display_name ?? '', role: u.role, joined: u.joined ? prettyDate(u.joined.slice(0, 10)) : '—', lastActive: u.last_active ? prettyDate(u.last_active.slice(0, 10)) : '—', onboarded: u.onboarded }))}
+          users={(users ?? []).map((u) => ({ email: u.email ?? '', name: u.display_name ?? '', role: u.role, joined: u.joined ? prettyDate(u.joined.slice(0, 10)) : '-', lastActive: u.last_active ? prettyDate(u.last_active.slice(0, 10)) : '-', onboarded: u.onboarded }))}
           exercises={(exercises ?? []).map((e) => ({ id: e.id, name: e.name, cues: e.cues, mistakes: e.mistakes }))}
         />
         <section className="bg-card rounded-2xl border p-5">

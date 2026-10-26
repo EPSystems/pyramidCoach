@@ -2,9 +2,9 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { BatteryLow, CalendarClock, Medal } from 'lucide-react';
+import { ArrowRight, BatteryLow, CalendarClock, Medal } from 'lucide-react';
 import { toast } from 'sonner';
-import { logSport, moveSession, swapForLightest } from '@/lib/actions/training';
+import { logSport, moveSession, startSession, swapForLightest } from '@/lib/actions/training';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -24,13 +24,36 @@ export function DrainedButton({ sessionId }: { sessionId: string }) {
           const r = await swapForLightest(sessionId);
           if (!r.ok) toast.error(r.error);
           else {
-            toast.success(`Swapped — today is now ${r.data?.title}`);
+            toast.success(`Swapped. Today is now ${r.data?.title}`);
             router.refresh();
           }
         })
       }
     >
       <BatteryLow /> Feeling drained? Swap for the lightest session
+    </Button>
+  );
+}
+
+// Marks the session in progress (a no-op once it already is, or is done) and only then opens the logger.
+export function StartSessionButton({ sessionId, label, variant }: { sessionId: string; label: string; variant: 'default' | 'outline' }) {
+  const [pending, start] = useTransition();
+  const router = useRouter();
+  return (
+    <Button
+      size="lg"
+      className="w-full"
+      variant={variant}
+      disabled={pending}
+      onClick={() =>
+        start(async () => {
+          const r = await startSession(sessionId).catch(() => ({ ok: false as const, error: 'Could not open the session. Check your connection and try again.' }));
+          if (!r.ok) return void toast.error(r.error);
+          router.push(`/session/${sessionId}`);
+        })
+      }
+    >
+      {label} <ArrowRight />
     </Button>
   );
 }
@@ -137,7 +160,7 @@ export function LogSportDialog({ sports, defaultSport }: { sports: { id: string;
         </label>
         <div className="space-y-1.5">
           <p className="text-sm font-medium">
-            Session RPE: <span className="text-volt">{rpe}</span> <span className="text-muted-foreground">— {rpe ? RPE_HINT[rpe] : ''}</span>
+            Session RPE: <span className="text-volt">{rpe}</span> <span className="text-muted-foreground">· {rpe ? RPE_HINT[rpe] : ''}</span>
           </p>
           <div className="grid grid-cols-10 gap-1">
             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (

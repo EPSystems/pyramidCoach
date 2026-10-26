@@ -1,4 +1,4 @@
--- Pyramid Coach — initial schema (Section 5 of the plan).
+-- Pyramid Coach: initial schema (Section 5 of the plan).
 -- Every user-owned table: user_id → auth.users, RLS "own rows".
 
 create extension if not exists pgcrypto;

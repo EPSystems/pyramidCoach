@@ -20,12 +20,16 @@ export function ExerciseActions({ exerciseId, disliked, custom }: { exerciseId: 
         onClick={() =>
           start(async () => {
             const r = await toggleDislike(exerciseId);
+            if (!r.ok) {
+              toast.error(r.error);
+              return;
+            }
             setD(r.disliked);
             toast(r.disliked ? 'Won’t be picked in future plans' : 'Back in the pool');
           })
         }
       >
-        <ThumbsDown /> {d ? 'Disliked — undo' : 'I don’t like this one'}
+        <ThumbsDown /> {d ? 'Disliked (undo)' : 'I don’t like this one'}
       </Button>
       <p className="text-muted-foreground text-xs">Disliked exercises are skipped when your next plan is built (T-SEL-04).</p>
       {custom && (

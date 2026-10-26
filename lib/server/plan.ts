@@ -23,6 +23,9 @@ import { addDays, daysBetween, median, mondayOf } from '@/lib/engine/util';
 import { loadExercises, mapInjury, mapSet, mapUserSport, type SportRow } from './context';
 import { todayIn } from '@/lib/utils/dates';
 import type { Json } from '@/lib/db/database.types';
+import { createLogger } from '@/lib/log';
+
+const log = createLogger('server/plan');
 
 export const toJson = (x: unknown): NonNullable<Json> => JSON.parse(JSON.stringify(x ?? {})) as NonNullable<Json>;
 
@@ -38,7 +41,8 @@ export interface RegenOptions {
 
 /** Re-runs the engine and replaces future planned sessions (Section 6.14). History is never touched. */
 export async function regeneratePlan(supabase: Supa, userId: string, opts: RegenOptions) {
-  const [{ data: profile }, { data: settings }, { data: sportRows }, { data: injuries }, exercises, { data: activeBlock }] = await Promise.all([
+  log.debug('regeneratePlan', { userId, reason: opts.reason, blockKind: opts.blockKind });
+  const [profileRes, settingsRes, sportsRes, injuriesRes, exercises, blockRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('user_id', userId).single(),
     supabase.from('user_settings').select('*').eq('user_id', userId).single(),
     supabase.from('user_sports').select('*, sports(*)').eq('user_id', userId),
@@ -46,10 +50,19 @@ export async function regeneratePlan(supabase: Supa, userId: string, opts: Regen
     loadExercises(supabase),
     supabase.from('blocks').select('*').eq('user_id', userId).eq('status', 'active').maybeSingle(),
   ]);
+  // A failed sports/injuries/block read would silently plan as if there were none, so fail instead.
+  const { data: profile, error: profileErr } = log.db('select profiles', profileRes, { userId });
+  const { data: settings, error: settingsErr } = log.db('select user_settings', settingsRes, { userId });
+  const { data: sportRows, error: sportsErr } = log.db('select user_sports', sportsRes, { userId });
+  const { data: injuries, error: injuriesErr } = log.db('select injuries', injuriesRes, { userId });
+  const { data: activeBlock, error: blockErr } = log.db('select active block', blockRes, { userId });
+  const readErr = profileErr ?? settingsErr ?? sportsErr ?? injuriesErr ?? blockErr;
+  if (readErr) throw new Error(readErr.message);
   if (!profile || !settings) throw new Error('Profile or settings missing');
   const today = todayIn(profile.timezone);
   const since = addDays(today, -16 * 7);
-  const { data: setRows } = await supabase.from('logged_sets').select('*').eq('user_id', userId).gte('performed_on', since);
+  const { data: setRows, error: setsErr } = log.db('select logged_sets', await supabase.from('logged_sets').select('*').eq('user_id', userId).gte('performed_on', since), { userId });
+  if (setsErr) throw new Error(setsErr.message);
   const sets = (setRows ?? []).map(mapSet);
 
   // History summary for T-VOL-07 / T-FAT-06 / T-SEL-06.
@@ -67,13 +80,16 @@ export async function regeneratePlan(supabase: Supa, userId: string, opts: Regen
   const lastLogged = sets.reduce<string | null>((a, s) => (!a || s.performedOn > a ? s.performedOn : a), null);
   const weeksOff = lastLogged ? Math.floor(daysBetween(lastLogged, today) / 7) : settings.trained_last_month ? 0 : 4;
 
+  const prevAdjustments = settings.target_adjustments;
   let adjustments = (opts.resetAdjustments ? {} : (settings.target_adjustments as Partial<Record<TrackedMuscle, number>>)) ?? {};
   if (opts.addAdjustments) {
     adjustments = { ...adjustments };
     for (const [m, v] of Object.entries(opts.addAdjustments)) adjustments[m as TrackedMuscle] = (adjustments[m as TrackedMuscle] ?? 0) + (v ?? 0);
   }
-  if (opts.addAdjustments || opts.resetAdjustments) {
-    await supabase.from('user_settings').update({ target_adjustments: adjustments }).eq('user_id', userId);
+  const adjustmentsChanged = !!(opts.addAdjustments || opts.resetAdjustments);
+  if (adjustmentsChanged) {
+    const { error } = log.db('update user_settings.target_adjustments', await supabase.from('user_settings').update({ target_adjustments: adjustments }).eq('user_id', userId), { userId });
+    if (error) throw new Error(error.message);
   }
 
   const sports = ((sportRows ?? []) as SportRow[]).filter((s) => s.active && s.sports).map(mapUserSport);
@@ -122,13 +138,23 @@ export async function regeneratePlan(supabase: Supa, userId: string, opts: Regen
   };
   const plan = generateBlock(input);
 
+  // Puts the old adjustments back when a later step fails, so they don't apply to a plan that was never written.
+  const undoAdjustments = async () => {
+    if (!adjustmentsChanged) return;
+    log.db('undo user_settings.target_adjustments', await supabase.from('user_settings').update({ target_adjustments: prevAdjustments }).eq('user_id', userId), { userId });
+  };
+
   // Don't create a second session today if today's session is already started or done.
-  const { data: todays } = await supabase
-    .from('planned_sessions')
-    .select('id,status,kind')
-    .eq('user_id', userId)
-    .eq('scheduled_on', today)
-    .in('status', ['in_progress', 'done']);
+  // A failed read must not count as "nothing started today", or a second session would be planned.
+  const { data: todays, error: todaysErr } = log.db(
+    'select started sessions today',
+    await supabase.from('planned_sessions').select('id,status,kind').eq('user_id', userId).eq('scheduled_on', today).in('status', ['in_progress', 'done']),
+    { userId },
+  );
+  if (todaysErr) {
+    await undoAdjustments();
+    throw new Error(todaysErr.message);
+  }
   const todayLocked = (todays ?? []).some((s) => s.kind !== 'generated');
   const sessions = plan.sessions.filter((s) => !(todayLocked && s.date === today));
 
@@ -175,7 +201,12 @@ export async function regeneratePlan(supabase: Supa, userId: string, opts: Regen
       })),
     }))),
   });
-  if (error) throw error;
+  if (error) {
+    log.error('rpc replace_future_plan failed', { userId, reason: opts.reason, sessions: sessions.length, err: error });
+    await undoAdjustments();
+    throw error;
+  }
+  log.debug('plan replaced', { userId, kind: plan.kind, weeks: plan.weeks, sessions: sessions.length, warnings: plan.warnings.length });
   return plan;
 }
 
@@ -184,13 +215,13 @@ export async function regeneratePlan(supabase: Supa, userId: string, opts: Regen
 // ---------------------------------------------------------------------------
 
 export async function latestBodyweight(supabase: Supa, userId: string, fallback: number | null): Promise<number | null> {
-  const { data } = await supabase
-    .from('checkins')
-    .select('bodyweight_kg, day')
-    .eq('user_id', userId)
-    .not('bodyweight_kg', 'is', null)
-    .order('day', { ascending: false })
-    .limit(7);
+  const { data, error } = log.db(
+    'select recent bodyweights',
+    await supabase.from('checkins').select('bodyweight_kg, day').eq('user_id', userId).not('bodyweight_kg', 'is', null).order('day', { ascending: false }).limit(7),
+    { userId },
+  );
+  // Callers write targets from this value, so a failed read must not fall back to a stale weight.
+  if (error) throw new Error(error.message);
   const ws = (data ?? []).map((d) => Number(d.bodyweight_kg));
   if (!ws.length) return fallback;
   return Math.round((ws.reduce((a, b) => a + b, 0) / ws.length) * 10) / 10;
@@ -203,15 +234,25 @@ export async function recomputeNutrition(
   reason: string,
   opts?: { phase?: NutritionPhase; ratePct?: number; multiplier?: number; kcalOffsetDelta?: number; resetPhase?: boolean },
 ) {
-  const [{ data: profile }, { data: settings }, { data: ns }, { data: sportRows }] = await Promise.all([
+  log.debug('recomputeNutrition', { userId, reason, phase: opts?.phase, resetPhase: opts?.resetPhase });
+  const [profileRes, settingsRes, nsRes, sportsRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('user_id', userId).single(),
     supabase.from('user_settings').select('*').eq('user_id', userId).single(),
     supabase.from('nutrition_settings').select('*').eq('user_id', userId).maybeSingle(),
     supabase.from('user_sports').select('*, sports(*)').eq('user_id', userId),
   ]);
+  const { data: profile, error: profileErr } = log.db('select profiles', profileRes, { userId });
+  const { data: settings, error: settingsErr } = log.db('select user_settings', settingsRes, { userId });
+  // A failed read would be treated as "no nutrition settings yet" (resetting the phase) or "no sports", so fail instead.
+  const { data: ns, error: nsErr } = log.db('select nutrition_settings', nsRes, { userId });
+  const { data: sportRows, error: sportsErr } = log.db('select user_sports', sportsRes, { userId });
+  const readErr = profileErr ?? settingsErr ?? nsErr ?? sportsErr;
+  if (readErr) throw new Error(readErr.message);
   if (!profile || !settings) throw new Error('missing profile');
   const today = todayIn(profile.timezone);
-  const kg = (await latestBodyweight(supabase, userId, profile.bodyweight_kg)) ?? 75;
+  const latestKg = await latestBodyweight(supabase, userId, profile.bodyweight_kg);
+  if (latestKg == null) log.debug('no bodyweight on record, assuming 75 kg', { userId });
+  const kg = latestKg ?? 75;
   const phase = (opts?.phase ?? (ns?.phase as NutritionPhase | undefined) ?? phaseForGoal(settings.goal as Goal)) as NutritionPhase;
   const phaseChanged = !ns || ns.phase !== phase || opts?.resetPhase;
   const lifestyle = settings.lifestyle as Lifestyle;
@@ -230,19 +271,8 @@ export async function recomputeNutrition(
     ? [...history.map((h) => (h.to ? h : { ...h, to: today })), { phase, from: today, to: null }]
     : history;
 
-  await supabase.from('nutrition_settings').upsert({
-    user_id: userId,
-    phase,
-    activity_multiplier: base.multiplier,
-    maintenance_kcal: base.maintenance,
-    target_rate_pct: phase === 'loss' ? -ratePct : ratePct,
-    phase_started_on: phaseChanged ? today : ns!.phase_started_on,
-    last_adjusted_on: opts?.kcalOffsetDelta || opts?.multiplier ? today : (ns?.last_adjusted_on ?? null),
-    initial_adjust_done: phaseChanged ? false : opts?.multiplier ? true : (ns?.initial_adjust_done ?? false),
-    kcal_offset: offset,
-    phase_history: toJson(newHistory),
-  });
-  await supabase.from('nutrition_targets').insert({
+  // Insert the targets row first: if the settings upsert then fails, the row is deleted again, so the two never disagree.
+  const { data: target, error: targetErr } = log.db('insert nutrition_targets', await supabase.from('nutrition_targets').insert({
     user_id: userId,
     effective_from: today,
     kcal: final.kcal,
@@ -256,6 +286,23 @@ export async function recomputeNutrition(
     sport_kcal_per_day: base.sportKcalPerDay,
     maintenance_kcal: base.maintenance,
     reason: `${reason}: ${base.ruleIds.join(', ')}`,
-  });
+  }).select('id').single(), { userId, reason });
+  if (targetErr) throw new Error(targetErr.message);
+  const { error: nsWriteErr } = log.db('upsert nutrition_settings', await supabase.from('nutrition_settings').upsert({
+    user_id: userId,
+    phase,
+    activity_multiplier: base.multiplier,
+    maintenance_kcal: base.maintenance,
+    target_rate_pct: phase === 'loss' ? -ratePct : ratePct,
+    phase_started_on: phaseChanged ? today : ns!.phase_started_on,
+    last_adjusted_on: opts?.kcalOffsetDelta || opts?.multiplier ? today : (ns?.last_adjusted_on ?? null),
+    initial_adjust_done: phaseChanged ? false : opts?.multiplier ? true : (ns?.initial_adjust_done ?? false),
+    kcal_offset: offset,
+    phase_history: toJson(newHistory),
+  }), { userId, reason });
+  if (nsWriteErr) {
+    log.db('undo insert nutrition_targets', await supabase.from('nutrition_targets').delete().eq('id', target.id).eq('user_id', userId), { userId, targetId: target.id });
+    throw new Error(nsWriteErr.message);
+  }
   return { ...base, kcal: final.kcal, fatG: final.fatG, carbsG: final.carbsG, warnings: base.warnings };
 }

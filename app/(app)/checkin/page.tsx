@@ -49,10 +49,10 @@ export default async function CheckinPage() {
                 {recent!.map((r) => (
                   <tr key={r.day}>
                     <td className="py-1.5">{prettyDate(r.day)}</td>
-                    <td>{r.sleep_hours ?? '—'}</td>
-                    <td>{r.energy ?? '—'}</td>
-                    <td>{r.stress ?? '—'}</td>
-                    <td>{Object.keys((r.soreness as object) ?? {}).length || '—'}</td>
+                    <td>{r.sleep_hours ?? '-'}</td>
+                    <td>{r.energy ?? '-'}</td>
+                    <td>{r.stress ?? '-'}</td>
+                    <td>{Object.keys((r.soreness as object) ?? {}).length || '-'}</td>
                   </tr>
                 ))}
               </tbody>

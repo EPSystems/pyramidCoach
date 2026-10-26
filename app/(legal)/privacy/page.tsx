@@ -43,7 +43,7 @@ export default function PrivacyPage() {
       <LegalSection title="Why we use it">
         <ul>
           <li>To create and secure your account and sign you in.</li>
-          <li>To build, run and adapt your training plan and nutrition targets — the core of the service.</li>
+          <li>To build, run and adapt your training plan and nutrition targets, the core of the service.</li>
           <li>To send account emails: sign-up confirmation and password reset. We do not send marketing email.</li>
           <li>To keep the service working, prevent abuse and fix problems.</li>
         </ul>
@@ -72,16 +72,16 @@ export default function PrivacyPage() {
         <p>A small number of providers process data on our behalf, only to run the service:</p>
         <ul>
           <li>
-            <strong>Supabase</strong> — database and authentication. Stores all the data listed above.
+            <strong>Supabase</strong>: database and authentication. Stores all the data listed above.
           </li>
           <li>
-            <strong>Vercel</strong> — hosting. Serves the app and keeps short-lived request logs.
+            <strong>Vercel</strong>: hosting. Serves the app and keeps short-lived request logs.
           </li>
           <li>
-            <strong>Resend</strong> — transactional email. Receives your email address and the content of account emails.
+            <strong>Resend</strong>: transactional email. Receives your email address and the content of account emails.
           </li>
           <li>
-            <strong>Google</strong> — optional sign-in. Only involved if you choose Continue with Google.
+            <strong>Google</strong>: optional sign-in. Only involved if you choose Continue with Google.
           </li>
         </ul>
         <p>
@@ -108,13 +108,13 @@ export default function PrivacyPage() {
         <p>Depending on where you live (for example under the GDPR), you have the right to:</p>
         <ul>
           <li>
-            <strong>Access and export</strong> your data — Settings → Your data → Export everything (JSON), or your logged sets as CSV.
+            <strong>Access and export</strong> your data: Settings → Your data → Export everything (JSON), or your logged sets as CSV.
           </li>
           <li>
-            <strong>Correct</strong> it — edit your profile, settings and entries in the app.
+            <strong>Correct</strong> it: edit your profile, settings and entries in the app.
           </li>
           <li>
-            <strong>Delete</strong> it — remove individual entries or your whole account.
+            <strong>Delete</strong> it: remove individual entries or your whole account.
           </li>
           <li>
             <strong>Object to or restrict</strong> processing, and <strong>withdraw consent</strong> for health-related information.

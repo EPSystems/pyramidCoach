@@ -71,7 +71,7 @@ export function Stepper({
         <Minus className="size-4" />
       </button>
       <output className={cn('num min-w-[3.5rem] text-center font-semibold', size === 'lg' ? 'text-xl' : 'text-lg')} aria-live="polite" aria-label={label}>
-        {format ? format(value) : value ?? '—'}
+        {format ? format(value) : value ?? '-'}
       </output>
       <button type="button" className={btn} onClick={() => onChange(Math.min(max, round((value ?? min) + (value == null ? 0 : step))))} aria-label={`Increase ${label}`}>
         <Plus className="size-4" />

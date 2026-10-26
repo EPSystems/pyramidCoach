@@ -27,7 +27,7 @@ export function AdminClient({
     <>
       <section className="bg-card rounded-2xl border p-5">
         <h2 className="font-display text-2xl font-bold uppercase">Users ({users.length})</h2>
-        <p className="text-muted-foreground text-xs">Names and activity only — training and health data stay private to each user.</p>
+        <p className="text-muted-foreground text-xs">Names and activity only; training and health data stay private to each user.</p>
         <ul className="mt-3 divide-y text-sm">
           {users.map((u) => (
             <li key={u.email} className="flex items-center gap-3 py-2">
@@ -86,7 +86,7 @@ export function AdminClient({
         </Select>
         <Textarea rows={5} value={cues} onChange={(e) => setCues(e.target.value)} aria-label="Cues, one per line" />
         <Textarea rows={2} value={mistakes} onChange={(e) => setMistakes(e.target.value)} aria-label="Mistakes, one per line" />
-        <p className="text-muted-foreground text-xs">Write in your own words — never paste text from the books.</p>
+        <p className="text-muted-foreground text-xs">Write in your own words. Never paste text from the books.</p>
         <Button
           disabled={pending}
           onClick={() =>

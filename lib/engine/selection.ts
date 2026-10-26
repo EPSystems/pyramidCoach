@@ -9,7 +9,7 @@ export interface SelectionContext {
   disliked: string[];
   previous?: Record<string, string>; // slotKey → exerciseId (stability, T-SEL-06)
   sportPriority?: boolean;
-  /** Exercises already used elsewhere this week — mildly deprioritised for variety (1–3 per pattern, T-SEL-01). */
+  /** Exercises already used elsewhere this week, mildly deprioritised for variety (1–3 per pattern, T-SEL-01). */
   usedThisWeek?: Set<string>;
 }
 

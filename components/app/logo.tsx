@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils';
 
-/** Three stacked tiers — the pyramid of priorities, read bottom-up. */
+/** Three stacked tiers: the pyramid of priorities, read bottom-up. */
 export function PyramidMark({ className, lit = 3 }: { className?: string; lit?: number }) {
   const tiers = [
     { x: 2, w: 28, y: 22 },

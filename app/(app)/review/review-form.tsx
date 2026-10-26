@@ -42,7 +42,7 @@ export function ReviewForm({ initial, evidence, completed }: { initial: Record<R
         </div>
       ))}
       <p className="text-sm">
-        <span className="num font-semibold">{yes}</span> of 5 yes {yes >= 2 ? <span className="text-warn">— a deload will be proposed</span> : <span className="text-muted-foreground">— carry on</span>}
+        <span className="num font-semibold">{yes}</span> of 5 yes {yes >= 2 ? <span className="text-warn">· a deload will be proposed</span> : <span className="text-muted-foreground">· carry on</span>}
       </p>
       <Button
         size="lg"
@@ -53,7 +53,7 @@ export function ReviewForm({ initial, evidence, completed }: { initial: Record<R
             const r = await submitReview(answers);
             if (!r.ok) toast.error(r.error);
             else {
-              toast.success(r.created ? `${r.created} new proposal${r.created > 1 ? 's' : ''}` : 'Review saved — no changes needed');
+              toast.success(r.created ? `${r.created} new proposal${r.created > 1 ? 's' : ''}` : 'Review saved, no changes needed');
               router.refresh();
             }
           })

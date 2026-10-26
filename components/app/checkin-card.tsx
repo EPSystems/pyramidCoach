@@ -59,7 +59,7 @@ export function CheckinCard({ initial, units, compact, onSaved, hideWeight }: { 
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <span className="text-sm font-medium">Sleep</span>
-        <Stepper label="Sleep hours" value={sleep} onChange={setSleep} step={0.5} min={0} max={14} format={(v) => (v == null ? '—' : `${v} h`)} />
+        <Stepper label="Sleep hours" value={sleep} onChange={setSleep} step={0.5} min={0} max={14} format={(v) => (v == null ? '-' : `${v} h`)} />
       </div>
       <div className="space-y-1.5">
         <span className="text-sm font-medium">Energy</span>

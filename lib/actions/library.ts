@@ -4,6 +4,9 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { ALL_MUSCLES } from '@/lib/engine/types';
 import { requireUser } from '@/lib/server/context';
+import { createLogger } from '@/lib/log';
+
+const log = createLogger('actions/library');
 
 const PATTERN_TAGS: Record<string, string[]> = {
   squat: ['squat_machine'],
@@ -33,12 +36,16 @@ const CustomExercise = z.object({
 
 export async function createCustomExercise(raw: z.input<typeof CustomExercise>): Promise<{ ok: boolean; error?: string; slug?: string }> {
   const p = CustomExercise.safeParse(raw);
-  if (!p.success) return { ok: false, error: p.error.issues[0]?.message ?? 'Invalid exercise' };
+  if (!p.success) {
+    log.warn('createCustomExercise: invalid input', { issues: p.error.issues.map((i) => i.path.join('.')) });
+    return { ok: false, error: p.error.issues[0]?.message ?? 'Invalid exercise' };
+  }
   const d = p.data;
   const { supabase, user } = await requireUser();
+  log.debug('createCustomExercise', { userId: user.id, pattern: d.pattern });
   const slug = `${d.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}-${user.id.slice(0, 6)}-${Date.now().toString(36)}`;
   const tags = d.pattern === 'isolation' ? d.primary.map((m) => ISO_TAG[m]).filter(Boolean) : (PATTERN_TAGS[d.pattern] ?? []);
-  const { data, error } = await supabase
+  const { data, error } = log.db('insert exercises (custom)', await supabase
     .from('exercises')
     .insert({
       slug,
@@ -52,35 +59,52 @@ export async function createCustomExercise(raw: z.input<typeof CustomExercise>):
       owner_user_id: user.id,
     })
     .select('id')
-    .single();
+    .single(), { userId: user.id });
   if (error) return { ok: false, error: error.message };
   const rows = [
     ...d.primary.map((m) => ({ exercise_id: data.id, muscle_id: m, role: 'primary' })),
     ...d.secondary.filter((m) => !d.primary.includes(m)).map((m) => ({ exercise_id: data.id, muscle_id: m, role: 'secondary' })),
   ];
-  const { error: mErr } = await supabase.from('exercise_muscles').insert(rows);
-  if (mErr) return { ok: false, error: mErr.message };
+  const { error: mErr } = log.db('insert exercise_muscles', await supabase.from('exercise_muscles').insert(rows), { exerciseId: data.id, count: rows.length });
+  if (mErr) {
+    // Don't leave an exercise with no muscles behind: remove it so the user can simply retry.
+    const { error: delErr } = log.db('delete exercises (orphan cleanup)', await supabase.from('exercises').delete().eq('id', data.id).eq('owner_user_id', user.id), { exerciseId: data.id });
+    if (delErr) {
+      revalidatePath('/library');
+      return { ok: false, error: `Could not save the exercise's muscles (${mErr.message}). It was created without muscles; delete it from the library and try again.` };
+    }
+    return { ok: false, error: `Could not save the exercise's muscles: ${mErr.message}` };
+  }
   revalidatePath('/library');
   return { ok: true, slug };
 }
 
 export async function deleteCustomExercise(id: string): Promise<{ ok: boolean; error?: string }> {
   const { supabase, user } = await requireUser();
-  const { error } = await supabase.from('exercises').delete().eq('id', id).eq('owner_user_id', user.id);
+  log.debug('deleteCustomExercise', { exerciseId: id });
+  const { error } = log.db('delete exercises (custom)', await supabase.from('exercises').delete().eq('id', id).eq('owner_user_id', user.id), { exerciseId: id });
   if (error) return { ok: false, error: error.message.includes('foreign key') ? 'This exercise is used in your plan or history.' : error.message };
   revalidatePath('/library');
   return { ok: true };
 }
 
-export async function toggleDislike(exerciseId: string): Promise<{ ok: boolean; disliked: boolean }> {
+/** On failure `disliked` is the state before the call (or false if it couldn't be read). */
+export async function toggleDislike(exerciseId: string): Promise<{ ok: boolean; disliked: boolean; error?: string }> {
   const { supabase, user } = await requireUser();
-  const { data } = await supabase.from('user_settings').select('disliked_exercise_ids').eq('user_id', user.id).single();
-  const cur = data?.disliked_exercise_ids ?? [];
+  // Stop on a failed read: treating it as [] would make the update below wipe every other dislike.
+  const { data, error: readErr } = log.db('select user_settings.disliked_exercise_ids', await supabase.from('user_settings').select('disliked_exercise_ids').eq('user_id', user.id).single(), { userId: user.id });
+  if (readErr || !data) return { ok: false, disliked: false, error: readErr?.message ?? 'Settings not found' };
+  const cur = data.disliked_exercise_ids ?? [];
   const disliked = !cur.includes(exerciseId);
-  await supabase
-    .from('user_settings')
-    .update({ disliked_exercise_ids: disliked ? [...cur, exerciseId] : cur.filter((x) => x !== exerciseId) })
-    .eq('user_id', user.id);
+  const { error } = log.db(
+    'update user_settings.disliked_exercise_ids',
+    await supabase
+      .from('user_settings')
+      .update({ disliked_exercise_ids: disliked ? [...cur, exerciseId] : cur.filter((x) => x !== exerciseId) })
+      .eq('user_id', user.id),
+    { exerciseId, disliked },
+  );
+  if (error) return { ok: false, disliked: !disliked, error: error.message };
   revalidatePath('/library');
   return { ok: true, disliked };
 }

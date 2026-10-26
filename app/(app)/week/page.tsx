@@ -107,7 +107,7 @@ export default async function WeekPage({ searchParams }: PageProps<'/week'>) {
                     </div>
                     <span className="num text-right font-semibold">
                       {Math.round(v * 10) / 10}
-                      <span className="text-muted-foreground font-normal">/{target ?? '—'}</span>
+                      <span className="text-muted-foreground font-normal">/{target ?? '-'}</span>
                     </span>
                   </li>
                 );

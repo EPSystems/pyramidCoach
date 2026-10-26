@@ -3,6 +3,9 @@ import { loadsLower, regionsOverlap, TEMPLATES, type Region } from './split';
 import { isHardIntensity, isLegHeavyHard, sportsOnDay } from './sports';
 import type { DayPlacement, Goal, ScheduleResult, UserSport } from './types';
 import { combinations, variance } from './util';
+import { createLogger } from '@/lib/log';
+
+const log = createLogger('engine/schedule');
 
 const prevDay = (d: number) => (d === 1 ? 7 : d - 1);
 const nextDay = (d: number) => (d === 7 ? 1 : d + 1);
@@ -80,7 +83,10 @@ export function scorePlacement(placements: DayPlacement[], sports: UserSport[], 
 export function placeSessions(input: ScheduleInput): ScheduleResult {
   const k = input.templates.length;
   const days = [...new Set(input.availableDays)].sort((a, b) => a - b);
-  if (days.length < k) throw new Error(`Need ${k} available days, got ${days.length}`);
+  if (days.length < k) {
+    log.debug('not enough available days', { needed: k, available: days.length });
+    throw new Error(`Need ${k} available days, got ${days.length}`);
+  }
   let best: (ScheduleResult & { tie: number[] }) | null = null;
   for (const combo of combinations(days, k)) {
     for (let rot = 0; rot < k; rot++) {

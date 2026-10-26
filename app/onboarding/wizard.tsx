@@ -106,7 +106,7 @@ export function OnboardingWizard({ sports, prefill, email }: { sports: { id: str
 
   // 1 About
   const [name, setName] = useState(p.displayName ?? email.split('@')[0] ?? '');
-  const [sex, setSex] = useState<'male' | 'female' | 'unspecified'>('unspecified');
+  const [sex, setSex] = useState<OnboardingPayload['sex'] | null>(null);
   const [birthYear, setBirthYear] = useState('');
   const [units, setUnits] = useState<'kg' | 'lb'>('kg');
   const [height, setHeight] = useState(p.heightCm ? String(p.heightCm) : '');
@@ -141,7 +141,7 @@ export function OnboardingWizard({ sports, prefill, email }: { sports: { id: str
   const hasSport = userSports.length > 0;
 
   const valid = [
-    name.trim().length > 0 && Number(weight) > 0,
+    name.trim().length > 0 && !!sex && Number(weight) > 0,
     !!goal,
     !!effectiveStatus,
     userSports.every((s) => s.weekdays.length > 0),
@@ -163,7 +163,7 @@ export function OnboardingWizard({ sports, prefill, email }: { sports: { id: str
     const wKg = fromDisplay(Number(weight), units);
     const payload: OnboardingPayload = {
       displayName: name.trim(),
-      sex,
+      sex: sex!,
       birthYear: num(birthYear),
       heightCm: num(height),
       bodyweightKg: wKg,
@@ -208,12 +208,12 @@ export function OnboardingWizard({ sports, prefill, email }: { sports: { id: str
       <section className="rise mt-6 space-y-5" key={step}>
         {step === 0 && (
           <>
-            {prefill && <p className="bg-accent/50 text-accent-foreground rounded-xl p-3 text-sm">Your profile was imported — check each step and confirm.</p>}
+            {prefill && <p className="bg-accent/50 text-accent-foreground rounded-xl p-3 text-sm">Your profile was imported. Check each step and confirm.</p>}
             <Field label="Name">
               <Input value={name} onChange={(e) => setName(e.target.value)} className="h-12 text-base" />
             </Field>
-            <Field label="Sex (optional — used for body-fat thresholds)">
-              <Segmented label="Sex" value={sex} onChange={setSex} options={[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }, { value: 'unspecified', label: 'Skip' }]} />
+            <Field label="Sex (used for body-fat thresholds)">
+              <Segmented label="Sex" value={sex} onChange={setSex} options={[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }]} />
             </Field>
             <Field label="Units">
               <Segmented label="Units" value={units} onChange={setUnits} options={[{ value: 'kg', label: 'kg' }, { value: 'lb', label: 'lb' }]} />
@@ -265,7 +265,7 @@ export function OnboardingWizard({ sports, prefill, email }: { sports: { id: str
               <Segmented label="Trained last month" value={trainedLastMonth ? 'y' : 'n'} onChange={(v) => setTrainedLastMonth(v === 'y')} options={[{ value: 'y', label: 'Yes' }, { value: 'n', label: 'No' }]} />
             </Field>
             <details className="bg-card rounded-xl border p-3" open={goal === 'strength' || !!prefill?.seeds}>
-              <summary className="cursor-pointer text-sm font-medium">Recent best sets (optional) — seeds your starting weights</summary>
+              <summary className="cursor-pointer text-sm font-medium">Recent best sets (optional): seeds your starting weights</summary>
               <div className="mt-3 space-y-2">
                 {(['squat', 'bench', 'deadlift', 'ohp'] as const).map((lift) => (
                   <div key={lift} className="grid grid-cols-[6rem_1fr_auto_1fr] items-center gap-2">
@@ -426,7 +426,7 @@ export function OnboardingWizard({ sports, prefill, email }: { sports: { id: str
         {step === 6 && (
           <>
             <p className="text-muted-foreground text-sm">
-              Outside lifting and sports — those are counted separately. <Why ruleIds={['N-MNT-02', 'N-MNT-04']} />
+              Outside lifting and sports; those are counted separately. <Why ruleIds={['N-MNT-02', 'N-MNT-04']} />
             </p>
             <div className="space-y-3">
               {LIFESTYLES.map((l) => (

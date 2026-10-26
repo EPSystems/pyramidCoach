@@ -35,7 +35,7 @@ const LiftSeed = z.object({ load: z.number().positive().max(500), reps: z.number
 
 export const OnboardingInput = z.object({
   displayName: z.string().min(1).max(60),
-  sex: z.enum(['male', 'female', 'unspecified']),
+  sex: z.enum(['male', 'female'], { error: 'Choose Male or Female for Sex.' }),
   birthYear: z.number().int().min(1920).max(2015).nullable().optional(),
   heightCm: z.number().min(120).max(230).nullable().optional(),
   bodyweightKg: z.number().min(35).max(250),

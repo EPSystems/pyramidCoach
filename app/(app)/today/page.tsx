@@ -1,9 +1,8 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { ArrowRight, ChevronRight, Moon, Sparkles, Trophy } from 'lucide-react';
+import { ChevronRight, Moon, Sparkles, Trophy } from 'lucide-react';
 import { requireOnboarded } from '@/lib/server/context';
 import { activeBlock, blockWeekIndex, readiness, sessionsBetween, weekRange } from '@/lib/server/queries';
-import { goToSession } from '@/lib/actions/training';
 import { Button } from '@/components/ui/button';
 import { PageHeader, PyramidMeter, Why } from '@/components/app/bits';
 import { CheckinCard } from '@/components/app/checkin-card';
@@ -13,7 +12,7 @@ import { kindLabel } from '@/lib/engine/fatigue';
 import { prettyDate, weekdayLong } from '@/lib/utils/dates';
 import { cn } from '@/lib/utils';
 import type { MuscleId } from '@/lib/engine/types';
-import { DrainedButton, LogSportDialog, MoveSessionDialog } from './actions-ui';
+import { DrainedButton, LogSportDialog, MoveSessionDialog, StartSessionButton } from './actions-ui';
 
 export const metadata: Metadata = { title: 'Today' };
 
@@ -102,11 +101,7 @@ export default async function TodayPage() {
                   ))}
                 </ol>
                 <div className="p-4">
-                  <form action={goToSession.bind(null, s.id)}>
-                    <Button size="lg" className="w-full" type="submit" variant={done ? 'outline' : 'default'}>
-                      {done ? 'Review session' : s.status === 'in_progress' ? 'Continue session' : 'Start'} <ArrowRight />
-                    </Button>
-                  </form>
+                  <StartSessionButton sessionId={s.id} variant={done ? 'outline' : 'default'} label={done ? 'Review session' : s.status === 'in_progress' ? 'Continue session' : 'Start'} />
                 </div>
               </section>
             );
@@ -143,7 +138,7 @@ export default async function TodayPage() {
               ) : (
                 <p className="text-muted-foreground mt-1">Nothing scheduled yet.</p>
               )}
-              {sportsTomorrow.some((s) => s.intensity === 'match') && <p className="text-muted-foreground mt-2 text-sm">Match tomorrow — legs stay fresh.</p>}
+              {sportsTomorrow.some((s) => s.intensity === 'match') && <p className="text-muted-foreground mt-2 text-sm">Match tomorrow, so legs stay fresh.</p>}
             </section>
           )}
 

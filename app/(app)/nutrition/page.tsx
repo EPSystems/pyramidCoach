@@ -20,9 +20,9 @@ const PHASE_LABEL = { gain: 'Gaining', maintain: 'Maintaining', loss: 'Losing' }
 const GUIDES: { title: string; body: string; rules: string[] }[] = [
   { title: 'Spread your protein', body: 'Split protein over 3–6 meals of roughly equal size. The daily total matters most; even spacing is a bonus.', rules: ['N-PRO-01'] },
   { title: 'Creatine', body: 'Creatine monohydrate (3–5 g a day, any time) is the one supplement with strong evidence for muscle and strength.', rules: [] },
-  { title: 'How to weigh in', body: 'Morning, after the bathroom, before food or drink, same clothes. Daily swings of 1–2% are noise — the weekly average is what counts.', rules: ['N-WGT-01', 'N-WGT-02'] },
+  { title: 'How to weigh in', body: 'Morning, after the bathroom, before food or drink, same clothes. Daily swings of 1–2% are noise; the weekly average is what counts.', rules: ['N-WGT-01', 'N-WGT-02'] },
   { title: 'The 4:1 rule', body: 'Spend at least four times as long gaining or maintaining as you spend cutting. A four-month gain earns a one-month mini-cut.', rules: ['N-PHS-02'] },
-  { title: 'Recomp is real', body: 'You can build muscle at maintenance or in a small deficit — especially if you are newer or your training just improved.', rules: ['N-PHS-03'] },
+  { title: 'Recomp is real', body: 'You can build muscle at maintenance or in a small deficit, especially if you are newer or your training just improved.', rules: ['N-PHS-03'] },
 ];
 
 export default async function NutritionPage() {
@@ -135,7 +135,7 @@ export default async function NutritionPage() {
               </div>
               <p className="num text-muted-foreground mt-1 text-xs">
                 {Math.round(buildDays / 7)} wk build/maintain · {Math.round(cutDays / 7)} wk cut
-                {cutDays > 0 && buildDays / cutDays < NUTRITION.gainToCutRatio && <span className="text-warn"> — spend more time building before the next cut</span>}
+                {cutDays > 0 && buildDays / cutDays < NUTRITION.gainToCutRatio && <span className="text-warn"> · spend more time building before the next cut</span>}
               </p>
             </div>
             <PhaseEditor phase={phase} rate={rate} status={settings.training_status as Status} />

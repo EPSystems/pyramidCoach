@@ -26,7 +26,7 @@ export function ResendButton({ email, coolingDown = false }: { email: string; co
         {pending ? 'Sending…' : remaining > 0 ? `Resend email in ${remaining}s` : 'Resend email'}
       </Button>
       <p className="text-sm" role="status" aria-live="polite">
-        {state.ok && !pending && <span className="text-muted-foreground">Sent — check your inbox.</span>}
+        {state.ok && !pending && <span className="text-muted-foreground">Sent. Check your inbox.</span>}
         {state.error && !pending && <span className="text-danger">{state.error}</span>}
       </p>
     </form>

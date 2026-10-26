@@ -12,7 +12,7 @@ export async function createClient() {
         try {
           toSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
         } catch {
-          // Called from a Server Component — the proxy refreshes the session instead.
+          // Called from a Server Component; the proxy refreshes the session instead.
         }
       },
     },

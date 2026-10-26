@@ -5,6 +5,7 @@ import { orderSession, estimateMinutes, type WorkSession } from './distribute';
 import { bestRecentE1rm } from './e1rm';
 import { isCompound, prescribe, rangeLevel } from './prescription';
 import { suggestNextSession } from './progression';
+import { createLogger } from '@/lib/log';
 import { isPrimary, painfulMuscles, rankCandidates, type SelectionContext } from './selection';
 import {
   LOWER_MUSCLES,
@@ -18,6 +19,8 @@ import {
   type SlotTag,
   type TrackedMuscle,
 } from './types';
+
+const log = createLogger('engine/generator');
 
 export type EquipmentPreset = 'full' | 'dumbbells' | 'bodyweight' | 'custom';
 export type Focus = 'auto' | 'upper' | 'lower' | 'full' | TrackedMuscle[];
@@ -144,6 +147,7 @@ export function generateSession(input: GeneratorInput): GeneratedSession {
     };
   });
   if (tired) notes.push('Tired today: one set fewer per exercise and one more rep in reserve.');
+  if (!exercises.length) log.debug('generated an empty session', { minutes: input.minutes, preset: input.equipmentPreset, candidates: input.exercises.length, excluded: excluded.size });
   const focusLabel = Array.isArray(input.focus) ? input.focus.join(' + ') : input.focus === 'auto' ? 'catch-up' : input.focus;
   return {
     title: `Generated · ${focusLabel}`,

@@ -35,7 +35,7 @@ export const FREQUENCY = {
 export type RepRange = readonly [number, number];
 
 export const INTENSITY = {
-  // T-INT-03 — rep range and RIR range per exercise category
+  // T-INT-03: rep range and RIR range per exercise category
   lower_free_compound: { reps: [4, 8] as RepRange, rir: [2, 4] as RepRange },
   lower_machine_compound: { reps: [4, 12] as RepRange, rir: [1, 4] as RepRange },
   upper_free_press: { reps: [4, 12] as RepRange, rir: [1, 4] as RepRange },
@@ -113,9 +113,9 @@ export const STRENGTH = {
     reps: [4, 2] as const,
     secondarySets: [0, 4] as const,
   },
-  secondaryTargetVolume: 12, // APP — inside 10–20 (T-STR-02)
-  secondaryTargetLoad: 8, // APP — inside 5–10 (T-STR-03)
-  secondaryTargetPeak: 4, // APP — inside 0–4 (T-STR-04)
+  secondaryTargetVolume: 12, // APP: inside 10–20 (T-STR-02)
+  secondaryTargetLoad: 8, // APP: inside 5–10 (T-STR-03)
+  secondaryTargetPeak: 4, // APP: inside 0–4 (T-STR-04)
 };
 
 export const BLOCK_WEEKS = {

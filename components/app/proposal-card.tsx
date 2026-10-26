@@ -105,8 +105,12 @@ export function ProposalCard({ p }: { p: ProposalView }) {
             disabled={pending}
             onClick={() =>
               start(async () => {
-                await rejectProposal(p.id);
-                toast('Proposal rejected — your plan is unchanged.');
+                const r = await rejectProposal(p.id);
+                if (!r.ok) {
+                  toast.error(r.error);
+                  return;
+                }
+                toast('Proposal rejected. Your plan is unchanged.');
                 router.refresh();
               })
             }

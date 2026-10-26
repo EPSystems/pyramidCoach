@@ -12,7 +12,7 @@ import { SEED_EXERCISES } from '@/lib/knowledge/exercises';
 import { addDays } from '@/lib/engine/util';
 import { baseInput, sport } from './helpers';
 
-describe('G1 — nutrition for Emo', () => {
+describe('G1: nutrition for Emo', () => {
   it('72 kg, lightly active, intermediate, lean gain 1%/month, football 2×90 hard', () => {
     const t = nutritionTargets({
       bodyweightKg: 72,
@@ -35,7 +35,7 @@ describe('G1 — nutrition for Emo', () => {
   });
 });
 
-describe('G2 — double progression', () => {
+describe('G2: double progression', () => {
   it('12@2 → 13@2 → 14@2 → 15@1 → 15@2 gives 13, 14, 15, 15 then +2 kg × 11', () => {
     const rx = { repMin: 10, repMax: 15, rirMin: 0, rirMax: 2 };
     const firsts: ExposureSet[] = [
@@ -57,7 +57,7 @@ describe('G2 — double progression', () => {
   });
 });
 
-describe('G3 — set-1 correction', () => {
+describe('G3: set-1 correction', () => {
   it('8–12 range, 50 kg × 6 → 45 kg, target 8', () => {
     const s = suggestNextSet({ rx: { repMin: 8, repMax: 12, rirMin: 1, rirMax: 4 }, setIndex: 0, load: 50, reps: 6, increment: 2.5 });
     expect(s.load).toBe(45);
@@ -110,7 +110,7 @@ function reviewState(over: Partial<WeeklyState>): WeeklyState {
   };
 }
 
-describe('G6 — 2 yes answers → standard deload', () => {
+describe('G6: 2 yes answers → standard deload', () => {
   it('sets × 0.6 rounded half-up, min 1; loads and RIR unchanged', () => {
     const state = reviewState({
       checkins: [...mkCheckins(28, addDays(WEEK, -28), () => ({ sleepHours: 8, stress: 2 })), ...mkCheckins(7, WEEK, () => ({ sleepHours: 6, stress: 4 }))],
@@ -139,7 +139,7 @@ describe('G6 — 2 yes answers → standard deload', () => {
   });
 });
 
-describe('G7 — intro week after a volume jump', () => {
+describe('G7: intro week after a volume jump', () => {
   it('planned 14 after 4 weeks averaging 10 → week 1 at 75% sets and +1 RIR', () => {
     const input = baseInput({ status: 'advanced', history: { sets: [], recentAvgWeeklySets: 10 } });
     const plan = generateBlock(input);
@@ -161,7 +161,7 @@ describe('G7 — intro week after a volume jump', () => {
   });
 });
 
-describe('G8 — lumbar soreness only', () => {
+describe('G8: lumbar soreness only', () => {
   it('targeted deload removes axial exercises; others unchanged', () => {
     const state = reviewState({ checkins: [...mkCheckins(28, addDays(WEEK, -28), () => ({})), ...mkCheckins(7, WEEK, (i) => ({ soreness: i === 2 ? { erectors: 'pain' } : {} }))] });
     const res = weeklyReview(state);
@@ -185,7 +185,7 @@ describe('G8 — lumbar soreness only', () => {
   });
 });
 
-describe('G9 / G13 — e1RM and singles', () => {
+describe('G9 / G13: e1RM and singles', () => {
   it('100 kg × 5 @ RIR 1 → 116.1 kg', () => {
     expect(Math.round(e1rm(100, 5, 1)! * 10) / 10).toBe(116.1);
     expect(e1rm(100, 12, 2)).toBeNull();
@@ -199,7 +199,7 @@ describe('G9 / G13 — e1RM and singles', () => {
 // ---------- weigh-ins ----------
 const wi = (day: string, kg: number) => ({ day, kg });
 
-describe('G10 — low-data week', () => {
+describe('G10: low-data week', () => {
   it('2 weigh-ins (Tue, Thu) → low_data, no proposal', () => {
     const ins = [wi('2026-10-13', 72), wi('2026-10-15', 72.2)];
     expect(weeklyAverages(ins)[0].lowData).toBe(true);
@@ -208,7 +208,7 @@ describe('G10 — low-data week', () => {
   });
 });
 
-describe('G11 — gain phase week 1 not up', () => {
+describe('G11: gain phase week 1 not up', () => {
   it('→ multiplier_adjust +0.2', () => {
     const prev = ['2026-10-05', '2026-10-07', '2026-10-10'].map((d) => wi(d, 72.0));
     const w1 = ['2026-10-12', '2026-10-14', '2026-10-17'].map((d) => wi(d, 71.9));
@@ -219,7 +219,7 @@ describe('G11 — gain phase week 1 not up', () => {
   });
 });
 
-describe('G12 — loss phase too slow', () => {
+describe('G12: loss phase too slow', () => {
   it('2,200 kcal, 0.4%/week vs 0.75 ± 0.25 → −150 kcal, protein unchanged, fat/carbs ≥ minimums', () => {
     // phase week 1 = Sep 28 (ignored); Oct 5 → Oct 19 shows 0.4%/week.
     const weeks = ['2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19'];

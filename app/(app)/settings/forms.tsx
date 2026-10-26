@@ -35,7 +35,7 @@ interface Training {
 }
 interface Profile {
   displayName: string;
-  sex: 'male' | 'female' | 'unspecified';
+  sex: 'male' | 'female' | null;
   heightCm: number | null;
   bodyFatPct: number | null;
   units: 'kg' | 'lb';
@@ -215,7 +215,7 @@ export function SettingsForms({ training, profile, userSports, catalog, injuries
                 const r = await updateTraining(t);
                 if (!r.ok) toast.error(r.error);
                 else {
-                  toast.success('Saved — future sessions regenerated');
+                  toast.success('Saved. Future sessions regenerated');
                   router.refresh();
                 }
               })
@@ -228,7 +228,11 @@ export function SettingsForms({ training, profile, userSports, catalog, injuries
             disabled={pending}
             onClick={() =>
               start(async () => {
-                await regenerateNow();
+                const r = await regenerateNow();
+                if (!r.ok) {
+                  toast.error(r.error);
+                  return;
+                }
                 toast.success('Plan regenerated from today');
                 router.refresh();
               })
@@ -248,8 +252,8 @@ export function SettingsForms({ training, profile, userSports, catalog, injuries
           <Row label="Name">
             <Input value={p.displayName} onChange={(e) => setP({ ...p, displayName: e.target.value })} className="h-11" />
           </Row>
-          <Row label="Sex">
-            <Segmented label="Sex" value={p.sex} onChange={(v) => setP({ ...p, sex: v })} options={[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }, { value: 'unspecified', label: '—' }]} />
+          <Row label="Sex" hint={p.sex ? undefined : <span className="text-danger">Choose Male or Female to save your profile.</span>}>
+            <Segmented label="Sex" value={p.sex} onChange={(v) => setP({ ...p, sex: v })} options={[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }]} />
           </Row>
           <Row label="Height (cm)">
             <Input inputMode="decimal" value={p.heightCm ?? ''} onChange={(e) => setP({ ...p, heightCm: e.target.value ? Number(e.target.value) : null })} className="num h-11" />
@@ -299,16 +303,21 @@ export function SettingsForms({ training, profile, userSports, catalog, injuries
         </label>
         <Button
           disabled={!dirtyP || pending}
-          onClick={() =>
+          onClick={() => {
+            const sex = p.sex;
+            if (!sex) {
+              toast.error('Choose Male or Female for Sex.');
+              return;
+            }
             start(async () => {
-              const r = await updateProfile(p);
+              const r = await updateProfile({ ...p, sex });
               if (!r.ok) toast.error(r.error);
               else {
                 toast.success('Profile saved');
                 router.refresh();
               }
-            })
-          }
+            });
+          }}
         >
           Save profile
         </Button>
@@ -334,7 +343,7 @@ export function SettingsForms({ training, profile, userSports, catalog, injuries
         </div>
         <DeleteAccount />
         <p className="text-muted-foreground text-xs">
-          This app gives general training and nutrition guidance. It is not a substitute for a doctor or physiotherapist. Your data is visible only to you — not even the app owner can see your training or health data.
+          This app gives general training and nutrition guidance. It is not a substitute for a doctor or physiotherapist. Your data is visible only to you; not even the app owner can see your training or health data.
         </p>
       </Section>
     </div>
@@ -429,7 +438,11 @@ function SportsEditor({ userSports, catalog }: { userSports: US[]; catalog: { id
                 disabled={pending}
                 onClick={() =>
                   start(async () => {
-                    await deleteSport(editing.id!);
+                    const r = await deleteSport(editing.id!);
+                    if (!r.ok) {
+                      toast.error(r.error);
+                      return;
+                    }
                     done('Sport removed');
                   })
                 }
@@ -523,7 +536,7 @@ function InjuriesEditor({ injuries, exercises }: { injuries: Inj[]; exercises: {
                   const r = await saveInjury({ ...editing, note: editing.note || null });
                   if (!r.ok) toast.error(r.error);
                   else {
-                    toast.success('Saved — exercise selection updated');
+                    toast.success('Saved. Exercise selection updated');
                     setEditing(null);
                     router.refresh();
                   }
@@ -541,7 +554,11 @@ function InjuriesEditor({ injuries, exercises }: { injuries: Inj[]; exercises: {
                 disabled={pending}
                 onClick={() =>
                   start(async () => {
-                    await deleteInjury(editing.id!);
+                    const r = await deleteInjury(editing.id!);
+                    if (!r.ok) {
+                      toast.error(r.error);
+                      return;
+                    }
                     setEditing(null);
                     router.refresh();
                   })

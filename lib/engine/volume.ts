@@ -31,7 +31,7 @@ export function baseVolume(input: Pick<BlockInput, 'status' | 'goal' | 'priority
   }
   if (input.goal === 'fat_loss' && base > VOLUME.fatLossCap) {
     base = VOLUME.fatLossCap;
-    notes.push('Capped at 14 sets while dieting — recovery is worse in a deficit.');
+    notes.push('Capped at 14 sets while dieting, since recovery is worse in a deficit.');
   }
   if (input.goal === 'strength') {
     ruleIds.push('T-STR-02');

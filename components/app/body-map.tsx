@@ -69,7 +69,7 @@ function Figure({ view, styles, selected, onSelect, interactive, defaultFill }: 
                 aria-label={focusable ? `${MUSCLE_SHORT[m!]}${st?.label ? `: ${st.label}` : ''}` : undefined}
                 aria-pressed={focusable ? !!isSel : undefined}
               >
-                {m && <title>{`${MUSCLE_SHORT[m]}${st?.label ? ` — ${st.label}` : ''}`}</title>}
+                {m && <title>{`${MUSCLE_SHORT[m]}${st?.label ? `: ${st.label}` : ''}`}</title>}
               </path>
               <path {...common} {...handlers} transform={MIR} aria-hidden />
             </g>

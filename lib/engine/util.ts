@@ -5,7 +5,7 @@ export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 export const round1 = (x: number) => Math.round(x * 10) / 10;
 export const round5 = (x: number) => Math.round(x / 5) * 5;
 export const round10 = (x: number) => Math.round(x / 10) * 10;
-/** Round half up (0.5 → 1) — used for deload set cuts (G6). */
+/** Round half up (0.5 → 1). Used for deload set cuts (G6). */
 export const roundHalfUp = (x: number) => Math.floor(x + 0.5 + 1e-9);
 
 const fix = (x: number) => Math.round(x * 1000) / 1000;

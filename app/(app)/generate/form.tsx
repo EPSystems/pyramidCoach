@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import { unstable_rethrow } from 'next/navigation';
 import { Play, Save, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { previewWorkout, saveWorkout, type GenFormInput, type GenPreview } from '@/lib/actions/generate';
@@ -10,6 +11,9 @@ import { Chip, Segmented, Why } from '@/components/app/bits';
 import { TRACKED_MUSCLES, type Equipment, type MuscleId, type TrackedMuscle } from '@/lib/engine/types';
 import { MUSCLE_SHORT } from '@/lib/knowledge/muscles';
 import { fmtLoad, type Units } from '@/lib/utils/units';
+import { createLogger } from '@/lib/log';
+
+const log = createLogger('generate/form');
 
 const EQ: Equipment[] = ['barbell', 'dumbbell', 'machine', 'cable', 'bodyweight', 'band', 'sled'];
 
@@ -40,7 +44,19 @@ export function GenerateForm({ initialMuscle, units }: { initialMuscle: TrackedM
       else setResult({ key, preview: r.preview! });
     });
 
-  const pickMuscle = (m: MuscleId) => {
+  // saveWorkout redirects on success and throws on failure (after cleaning up its own partial writes).
+  const save = (startNow: boolean) =>
+    start(async () => {
+      try {
+        await saveWorkout(input, startNow);
+      } catch (e) {
+        unstable_rethrow(e);
+        log.error('saveWorkout failed', { startNow, err: e });
+        toast.error('Could not save the workout. Please try again.');
+      }
+    });
+
+  const pickMuscle =(m: MuscleId) => {
     if (!(TRACKED_MUSCLES as readonly string[]).includes(m) || m === 'front_delts') return;
     const t = m as TrackedMuscle;
     setFocusMode('pick');
@@ -115,10 +131,10 @@ export function GenerateForm({ initialMuscle, units }: { initialMuscle: TrackedM
               </p>
             ))}
             <div className="mt-4 grid grid-cols-2 gap-2">
-              <Button variant="outline" disabled={pending || !preview.exercises.length} onClick={() => start(() => saveWorkout(input, false))}>
+              <Button variant="outline" disabled={pending || !preview.exercises.length} onClick={() => save(false)}>
                 <Save /> Save for later
               </Button>
-              <Button disabled={pending || !preview.exercises.length} onClick={() => start(() => saveWorkout(input, true))}>
+              <Button disabled={pending || !preview.exercises.length} onClick={() => save(true)}>
                 <Play /> Start now
               </Button>
             </div>

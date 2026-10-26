@@ -5,19 +5,27 @@ import { applyProposal } from '@/lib/engine/proposals';
 import type { PlannedSessionState, Proposal, ProposalKind, Status } from '@/lib/engine/types';
 import { loadExercises } from './context';
 import { recomputeNutrition, regeneratePlan, toJson } from './plan';
+import { createLogger } from '@/lib/log';
+
+const log = createLogger('server/proposals');
 
 export async function expireProposals(supabase: Supa, userId: string, today: string) {
-  await supabase.from('proposals').update({ status: 'expired' }).eq('user_id', userId).eq('status', 'pending').lt('expires_on', today);
+  log.db('expire proposals', await supabase.from('proposals').update({ status: 'expired' }).eq('user_id', userId).eq('status', 'pending').lt('expires_on', today), { userId });
 }
 
-/** Future planned sessions in the engine's shape. */
+/** Future planned sessions in the engine's shape. Throws if the read fails (an empty plan would make diffs silently no-op). */
 export async function loadStoredPlan(supabase: Supa, userId: string, from: string): Promise<PlannedSessionState[]> {
-  const { data } = await supabase
-    .from('planned_sessions')
-    .select('id, scheduled_on, status, template_key, planned_exercises(id, exercise_id, sets, rir_min, rir_max, position)')
-    .eq('user_id', userId)
-    .gte('scheduled_on', from)
-    .order('scheduled_on');
+  const { data, error } = log.db(
+    'select planned_sessions (stored plan)',
+    await supabase
+      .from('planned_sessions')
+      .select('id, scheduled_on, status, template_key, planned_exercises(id, exercise_id, sets, rir_min, rir_max, position)')
+      .eq('user_id', userId)
+      .gte('scheduled_on', from)
+      .order('scheduled_on'),
+    { userId },
+  );
+  if (error) throw error;
   return (data ?? []).map((s) => ({
     id: s.id,
     date: s.scheduled_on,
@@ -34,7 +42,9 @@ const SET_KINDS: ProposalKind[] = ['standard_deload', 'targeted_deload', 'intro_
 /** Insert new proposals, skipping duplicates of a pending proposal of the same kind (and same exercise for plateaus). */
 export async function insertProposals(supabase: Supa, userId: string, today: string, proposals: Proposal[]) {
   if (!proposals.length) return 0;
-  const { data: pending } = await supabase.from('proposals').select('kind, payload').eq('user_id', userId).eq('status', 'pending');
+  // Stop on a failed read: otherwise every proposal looks new and duplicates of pending ones get inserted.
+  const { data: pending, error: pendingErr } = log.db('select pending proposals', await supabase.from('proposals').select('kind, payload').eq('user_id', userId).eq('status', 'pending'), { userId });
+  if (pendingErr) throw pendingErr;
   const key = (k: string, p: unknown) => (k === 'plateau_action' ? `${k}:${(p as { exerciseId?: string }).exerciseId}` : k);
   const existing = new Set((pending ?? []).map((p) => key(p.kind, p.payload)));
   const plan = proposals.some((p) => SET_KINDS.includes(p.kind)) ? await loadStoredPlan(supabase, userId, today) : [];
@@ -73,7 +83,7 @@ export async function insertProposals(supabase: Supa, userId: string, today: str
       };
     });
   if (rows.length) {
-    const { error } = await supabase.from('proposals').insert(rows);
+    const { error } = log.db('insert proposals', await supabase.from('proposals').insert(rows), { userId, count: rows.length });
     if (error) throw error;
   }
   return rows.length;
@@ -82,29 +92,44 @@ export async function insertProposals(supabase: Supa, userId: string, today: str
 /** Applies an accepted proposal (Section 6.14). */
 export async function acceptProposalById(supabase: Supa, userId: string, id: string, today: string) {
   const { data: row, error } = await supabase.from('proposals').select('*').eq('id', id).eq('user_id', userId).single();
-  if (error || !row) throw new Error('Proposal not found');
+  if (error || !row) {
+    log.warn('proposal not found', { proposalId: id, err: error });
+    throw new Error('Proposal not found');
+  }
   if (row.status !== 'pending') throw new Error('Already decided');
+  log.debug('accept proposal', { proposalId: id, kind: row.kind });
   const proposal: Proposal = { kind: row.kind as ProposalKind, title: row.title, rationale: row.rationale, ruleIds: row.rule_ids, payload: row.payload as Record<string, unknown> };
   const [plan, exercises] = await Promise.all([loadStoredPlan(supabase, userId, today), loadExercises(supabase)]);
   const diff = applyProposal({ sessions: plan, exercises, today }, proposal);
 
+  // Every write below is checked; the first failure throws so the proposal is never marked accepted
+  // with only part of it applied. (No transaction is available app-side, so earlier rows stay written.)
+  const must = <T extends { error: { message: string } | null }>(op: string, res: T, ctx: Record<string, unknown>) => {
+    if (log.db(op, res, { proposalId: id, ...ctx }).error) throw new Error(`Could not apply the proposal (${op}). Please try again.`);
+    return res;
+  };
   for (const u of diff.exerciseUpdates) {
     const patch: TablesUpdate<'planned_exercises'> = {};
     if (u.sets != null) patch.sets = u.sets;
     if (u.rirMin != null) patch.rir_min = u.rirMin;
     if (u.rirMax != null) patch.rir_max = u.rirMax;
     if (u.exerciseId) patch.exercise_id = u.exerciseId;
-    await supabase.from('planned_exercises').update(patch).eq('id', u.id).eq('user_id', userId);
+    must('update planned_exercises', await supabase.from('planned_exercises').update(patch).eq('id', u.id).eq('user_id', userId), { plannedExerciseId: u.id });
   }
-  if (diff.exerciseDeletes.length) await supabase.from('planned_exercises').delete().in('id', diff.exerciseDeletes).eq('user_id', userId);
+  if (diff.exerciseDeletes.length)
+    must('delete planned_exercises', await supabase.from('planned_exercises').delete().in('id', diff.exerciseDeletes).eq('user_id', userId), { count: diff.exerciseDeletes.length });
   for (const s of diff.sessionUpdates) {
     const patch: TablesUpdate<'planned_sessions'> = {};
     if (s.status) patch.status = s.status;
     if (s.kind) patch.kind = s.kind;
-    await supabase.from('planned_sessions').update(patch).eq('id', s.id).eq('user_id', userId);
+    must('update planned_sessions', await supabase.from('planned_sessions').update(patch).eq('id', s.id).eq('user_id', userId), { sessionId: s.id });
   }
   if (diff.settings?.trainingStatus) {
-    await supabase.from('user_settings').update({ training_status: diff.settings.trainingStatus as Status, status_source: 'inferred' }).eq('user_id', userId);
+    must(
+      'update user_settings.training_status',
+      await supabase.from('user_settings').update({ training_status: diff.settings.trainingStatus as Status, status_source: 'inferred' }).eq('user_id', userId),
+      {},
+    );
   }
   if (diff.regenerate) {
     const isTransition = proposal.kind === 'block_transition';
@@ -118,12 +143,13 @@ export async function acceptProposalById(supabase: Supa, userId: string, id: str
     });
   }
   if (diff.nutrition?.kcal != null) {
-    const { data: cur } = await supabase.from('nutrition_targets').select('kcal').eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    // A failed read would turn the kcal change into a zero delta, so it must stop here.
+    const { data: cur } = must('select latest nutrition_targets', await supabase.from('nutrition_targets').select('kcal').eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle(), {});
     await recomputeNutrition(supabase, userId, 'calorie_adjust N-ADJ-02', { kcalOffsetDelta: diff.nutrition.kcal - (cur?.kcal ?? diff.nutrition.kcal) });
   }
   if (diff.nutrition?.multiplier != null) {
     await recomputeNutrition(supabase, userId, 'multiplier_adjust N-ADJ-01', { multiplier: diff.nutrition.multiplier });
   }
-  await supabase.from('proposals').update({ status: 'accepted', decided_at: new Date().toISOString() }).eq('id', id);
+  must('mark proposal accepted', await supabase.from('proposals').update({ status: 'accepted', decided_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId), {});
   return diff;
 }

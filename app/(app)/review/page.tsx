@@ -62,7 +62,7 @@ export default async function ReviewPage() {
               <h2 className="font-display text-2xl font-bold uppercase">How was the week?</h2>
               <Why ruleIds={['T-FAT-01', 'T-FAT-02']} />
             </div>
-            <p className="text-muted-foreground text-sm">Pre-filled from your logs — confirm or flip, then submit.</p>
+            <p className="text-muted-foreground text-sm">Pre-filled from your logs. Confirm or flip, then submit.</p>
             <ReviewForm
               initial={existing?.completed_at ? (Object.fromEntries((['dreading_gym', 'sleep_worse', 'performance_down', 'stress_worse', 'aches_worse'] as ReviewKey[]).map((k) => [k, !!existing[k]])) as Record<ReviewKey, boolean>) : autofill.answers}
               evidence={autofill.evidence}

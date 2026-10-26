@@ -106,7 +106,7 @@ export function BodyExplorer({ info, adjustments }: { info: Partial<Record<Muscl
                   <span className="size-3 shrink-0 rounded-sm" style={{ background: st.fill }} />
                   <span className={cn('flex-1', mi.injured && 'text-danger')}>{MUSCLE_SHORT[m]}</span>
                   <span className="num text-muted-foreground">
-                    {mode === 'planned' ? mi.planned : mode === 'volume' ? mi.logged : mode === 'recency' ? (mi.daysSince == null ? '—' : `${mi.daysSince}d`) : (mi.soreness.at(-1)?.level ?? '—')}
+                    {mode === 'planned' ? mi.planned : mode === 'volume' ? mi.logged : mode === 'recency' ? (mi.daysSince == null ? '-' : `${mi.daysSince}d`) : (mi.soreness.at(-1)?.level ?? '-')}
                     {(mode === 'volume' || mode === 'planned') && mi.target != null && <span>/{mi.target}</span>}
                   </span>
                 </button>
@@ -144,7 +144,7 @@ export function BodyExplorer({ info, adjustments }: { info: Partial<Record<Muscl
                   </div>
                   <div className="bg-muted rounded-xl p-3">
                     <p className="stamp text-muted-foreground">Last trained</p>
-                    <p className="font-display text-3xl font-bold">{i.daysSince == null ? '—' : `${i.daysSince}d`}</p>
+                    <p className="font-display text-3xl font-bold">{i.daysSince == null ? '-' : `${i.daysSince}d`}</p>
                   </div>
                 </div>
                 {i.target != null && (
@@ -157,7 +157,7 @@ export function BodyExplorer({ info, adjustments }: { info: Partial<Record<Muscl
                     </li>
                   </ul>
                 )}
-                {i.injured && <p className="text-danger text-sm">Injury or rehab logged here — heavy spinal and impact work for this area is excluded. <Why ruleIds={['T-SEL-08']} /></p>}
+                {i.injured && <p className="text-danger text-sm">Injury or rehab logged here: heavy spinal and impact work for this area is excluded. <Why ruleIds={['T-SEL-08']} /></p>}
                 <div>
                   <p className="stamp text-muted-foreground mb-1">Exercises this week</p>
                   {i.exercises.length ? (

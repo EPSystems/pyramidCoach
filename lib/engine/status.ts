@@ -14,7 +14,7 @@ export function inferTrainingStatus(h: { sets: LoggedSet[]; today: string; ancho
   const first = working.reduce((a, s) => (s.performedOn < a ? s.performedOn : a), working[0].performedOn);
   const weeks = daysBetween(first, h.today) / 7;
   if (weeks < STATUS_INFERENCE.minWeeks) {
-    return { status: null, share: null, evidence: `Only ${Math.floor(weeks)} weeks of logs — need ${STATUS_INFERENCE.minWeeks}.`, ruleIds: ['T-STA-03'] };
+    return { status: null, share: null, evidence: `Only ${Math.floor(weeks)} weeks of logs (need ${STATUS_INFERENCE.minWeeks}).`, ruleIds: ['T-STA-03'] };
   }
   let improved = 0;
   let total = 0;

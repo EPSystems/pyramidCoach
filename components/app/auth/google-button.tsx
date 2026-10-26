@@ -15,7 +15,7 @@ function GoogleG() {
   );
 }
 
-/** "Continue with Google" — same flow for sign-up and sign-in (AUTH_PLAN §2.3). */
+/** "Continue with Google": same flow for sign-up and sign-in (AUTH_PLAN §2.3). */
 export function GoogleButton({ next }: { next?: string }) {
   const [state, action, pending] = useActionState<AuthState, FormData>(signInWithGoogle, {});
   return (

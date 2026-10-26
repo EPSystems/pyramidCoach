@@ -15,6 +15,9 @@ import type {
 } from '@/lib/engine/types';
 import { todayIn } from '@/lib/utils/dates';
 import type { Units } from '@/lib/utils/units';
+import { createLogger } from '@/lib/log';
+
+const log = createLogger('server/context');
 
 export type ExerciseRow = Tables<'exercises'> & { exercise_muscles: { muscle_id: string | null; role: string }[] };
 
@@ -86,19 +89,30 @@ export function mapSet(r: Tables<'logged_sets'>): LoggedSet {
   };
 }
 
-/** Auth gate for server components and actions. */
+/**
+ * Auth gate for server components and actions. getClaims() verifies the JWT signature locally
+ * (asymmetric keys, JWKS cached), so this costs no auth round-trip; the proxy still runs
+ * getUser() against the auth server on every request, which catches revoked sessions.
+ */
 export const requireUser = cache(async () => {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  const { data, error } = await supabase.auth.getClaims();
+  if (!data?.claims.sub) {
+    // The proxy should have bounced signed-out users already, so landing here usually means a bad or expired JWT.
+    if (error) log.warn('getClaims failed, redirecting to /login', { err: error });
+    else log.debug('no session claims, redirecting to /login');
+    redirect('/login');
+  }
+  const user = { id: data.claims.sub, email: data.claims.email };
   return { supabase, user };
 });
 
 export async function loadExercises(supabase: Supa): Promise<ExerciseDef[]> {
   const { data, error } = await supabase.from('exercises').select('*, exercise_muscles(muscle_id, role)').order('popularity');
-  if (error) throw error;
+  if (error) {
+    log.error('select exercises failed', { err: error });
+    throw error;
+  }
   return (data as ExerciseRow[]).map(mapExercise);
 }
 
@@ -111,6 +125,12 @@ export const getUserContext = cache(async () => {
     supabase.from('user_sports').select('*, sports(*)').eq('user_id', user.id).order('created_at'),
     supabase.from('injuries').select('*').eq('user_id', user.id).order('started_on'),
   ]);
+  // maybeSingle() returns data: null with no error for a missing row, so an error here is a real failure.
+  // Throw it to the error boundary: treating it as "no profile" would send an onboarded user back to /onboarding.
+  if (log.db('select profiles', profileRes, { userId: user.id }).error) throw profileRes.error;
+  if (log.db('select user_settings', settingsRes, { userId: user.id }).error) throw settingsRes.error;
+  log.db('select user_sports', sportsRes, { userId: user.id });
+  log.db('select injuries', injuriesRes, { userId: user.id });
   const profile = profileRes.data;
   const tz = profile?.timezone ?? 'Europe/Sofia';
   const sportRows = (sportsRes.data ?? []) as SportRow[];
@@ -132,7 +152,10 @@ export const getUserContext = cache(async () => {
 /** Pages inside the app require a finished onboarding. */
 export async function requireOnboarded() {
   const ctx = await getUserContext();
-  if (!ctx.profile?.onboarded_at || !ctx.settings) redirect('/onboarding');
+  if (!ctx.profile?.onboarded_at || !ctx.settings) {
+    log.debug('not onboarded, redirecting to /onboarding', { userId: ctx.user.id, hasProfile: !!ctx.profile, hasSettings: !!ctx.settings });
+    redirect('/onboarding');
+  }
   return { ...ctx, settings: ctx.settings!, profile: ctx.profile! };
 }
 

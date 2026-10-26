@@ -6,13 +6,13 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
     <main className="relative z-10 mx-auto flex min-h-dvh max-w-md flex-col justify-between px-5 py-10">
       <div className="rise space-y-8">
-        <Link href="/login" aria-label="Pyramid Coach — sign in" className="inline-block">
+        <Link href="/login" aria-label="Pyramid Coach: sign in" className="inline-block">
           <PyramidMark className="size-14" />
         </Link>
         {children}
       </div>
       <footer className="text-muted-foreground mt-10 space-y-2 text-xs leading-relaxed">
-        <p>General training and nutrition guidance — not a substitute for a doctor or physiotherapist.</p>
+        <p>General training and nutrition guidance, not a substitute for a doctor or physiotherapist.</p>
         <nav aria-label="Legal" className="flex gap-2">
           <Link href="/terms" className="underline-offset-4 hover:underline">
             Terms

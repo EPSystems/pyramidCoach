@@ -224,7 +224,7 @@ export const EXERCISE_SEEDS: ExerciseSeed[] = [
   {
     slug: 'tibialis-raise', name: 'Tibialis raise', pattern: 'isolation', category: ISO, equipment: ['bodyweight'],
     primary: [], secondary: [], tags: [],
-    cues: ['Back against a wall, heels forward', 'Lift the toes as high as possible', 'Lower slowly', 'Prehab for shins and knees — high reps'],
+    cues: ['Back against a wall, heels forward', 'Lift the toes as high as possible', 'Lower slowly', 'Prehab for shins and knees: high reps'],
     mistakes: ['Standing too upright so there is no resistance'],
     subs: [],
   },
@@ -309,7 +309,7 @@ export const EXERCISE_SEEDS: ExerciseSeed[] = [
   {
     slug: 'dumbbell-fly', name: 'Dumbbell fly', pattern: 'fly', category: ISO, equipment: ['dumbbell'],
     primary: ['chest', 'front_delts'], secondary: [], long: true, tags: ['chest_iso'],
-    cues: ['Lie flat, dumbbells over the chest, palms facing', 'Lower in a wide arc with soft elbows', 'Stop at a strong stretch', 'Use light weights — the stretch does the work'],
+    cues: ['Lie flat, dumbbells over the chest, palms facing', 'Lower in a wide arc with soft elbows', 'Stop at a strong stretch', 'Use light weights; the stretch does the work'],
     mistakes: ['Going so heavy the shoulders take over'],
     subs: ['cable-fly', 'pec-deck'],
   },
@@ -446,7 +446,7 @@ export const EXERCISE_SEEDS: ExerciseSeed[] = [
   {
     slug: 'cable-upright-row', name: 'Cable upright row', pattern: 'upright_row', category: PC, equipment: ['cable'],
     primary: ['traps', 'side_delts'], secondary: ['rear_delts', 'biceps'], tags: ['lat_raise', 'traps'],
-    cues: ['Shoulder-width grip on a straight bar', 'Lead with the elbows', 'Stop when the elbows reach shoulder height', 'Stay pain-free — narrow the range if needed'],
+    cues: ['Shoulder-width grip on a straight bar', 'Lead with the elbows', 'Stop when the elbows reach shoulder height', 'Stay pain-free: narrow the range if needed'],
     mistakes: ['Pulling too high with a narrow grip'],
     subs: ['cable-lateral-raise', 'shrug'],
   },

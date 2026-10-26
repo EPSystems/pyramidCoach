@@ -46,7 +46,7 @@
   --radius-3xl: calc(var(--radius) * 2.2);
 }
 
-/* Light — chalk paper + ink, olive-lime accent */
+/* Light: chalk paper + ink, olive-lime accent */
 :root {
   --background: oklch(0.965 0.008 95);
   --foreground: oklch(0.2 0.012 95);
@@ -83,7 +83,7 @@
   color-scheme: light;
 }
 
-/* Dark — graphite steel + hi-vis volt */
+/* Dark: graphite steel + hi-vis volt */
 .dark {
   --background: oklch(0.165 0.006 110);
   --foreground: oklch(0.94 0.012 95);

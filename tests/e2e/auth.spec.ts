@@ -13,7 +13,7 @@ test('2. unconfirmed sign-in → "Confirm your email first" → Resend sends a s
   await expect(page.getByText('Confirm your email first')).toBeVisible();
   await expect(page).toHaveURL(/\/login/);
   await page.getByRole('button', { name: 'Resend email' }).click();
-  await expect(page.getByText('Sent — check your inbox.')).toBeVisible();
+  await expect(page.getByText('Sent. Check your inbox.')).toBeVisible();
   await waitForMessages(email, 2);
 });
 

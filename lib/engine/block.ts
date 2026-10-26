@@ -5,6 +5,7 @@ import { distribute, estimateMinutes, orderSession, sessionMuscleSets, type Work
 import { formatRx, isCompound, prescribe, rangeLevel, restFor } from './prescription';
 import { suggestNextSession } from './progression';
 import { placeSessions } from './schedule';
+import { createLogger } from '@/lib/log';
 import { painfulMuscles, selectForSlot, selectMainLift, type SelectionContext } from './selection';
 import { chooseSplit, sessionVariant, TEMPLATES, type SplitDef } from './split';
 import { hardSportSessionsPerWeek } from './sports';
@@ -25,6 +26,8 @@ import {
   type TrackedMuscle,
   type Warning,
 } from './types';
+
+const log = createLogger('engine/block');
 import { computeTargets, targetsMap, weeklyTargetFor } from './volume';
 import { addDays, isoWeekday, median, mondayOf, roundHalfUp } from './util';
 
@@ -73,7 +76,10 @@ function buildBaseWeek(split: SplitDef, ctx: BuildCtx, weekIndex: number, weeks:
       if (slot.mainLift) {
         if (!ctx.strength || ctx.sportPriority || !ctx.lifts.includes(slot.mainLift)) continue;
         const ex = selectMainLift(slot.mainLift, sc);
-        if (!ex) continue;
+        if (!ex) {
+          log.debug('no feasible main lift', { template: key, lift: slot.mainLift });
+          continue;
+        }
         mainsHere.add(slot.mainLift);
         used.add(ex.id);
         list.push({ ex, slotKey: slot.key, sets: 1, kind: 'single', fixed: true, repsForCounting: 1 });
@@ -88,6 +94,7 @@ function buildBaseWeek(split: SplitDef, ctx: BuildCtx, weekIndex: number, weeks:
       if (ctx.strength && slot.replacedByMain && mainsHere.has(slot.replacedByMain)) continue;
       const ex = selectForSlot(slot, sc, used);
       if (!ex) {
+        log.debug('no exercise for slot', { template: key, slot: slot.key });
         ctx.warnings.push({ code: 'NO_EXERCISE_FOR_SLOT', message: `No suitable exercise for “${slot.label}” in ${t.title} with your equipment and injuries.`, ruleIds: ['T-SEL-04'] });
         continue;
       }
@@ -176,6 +183,7 @@ export function generateBlock(input: BlockInput): BlockPlan {
   let kMin = Math.min(FREQUENCY.liftDays.min, kMax);
   if (input.status !== 'novice' && avail.length >= 3) kMin = Math.min(3, kMax);
   if (kMax < 1) {
+    log.debug('no lifting days', { availableDays: input.availableDays.length, maxLiftDays: input.maxLiftDays });
     throw new Error('No available lifting days');
   }
   if (kMax < FREQUENCY.liftDays.min) {
@@ -361,7 +369,7 @@ function materialiseSession(
       return {
         exerciseId: w.ex.id, slotKey: w.slotKey, position, sets: 1, repMin: 1, repMax: 1, rirMin: rir, rirMax: rir,
         restSeconds: restFor(w.ex, { strengthMain: true }), isMainLiftSingle: true,
-        note: load ? `Top single @ RPE ${rpe}` : `Top single @ RPE ${rpe} — no estimate yet: work up to a weight you could do ~5 times`,
+        note: load ? `Top single @ RPE ${rpe}` : `Top single @ RPE ${rpe}. No estimate yet: work up to a weight you could do ~5 times`,
         suggestedLoadKg: load, ruleIds: ['T-STR-02', 'T-STR-03', 'T-RST-01', 'T-FRQ-03'],
       };
     }

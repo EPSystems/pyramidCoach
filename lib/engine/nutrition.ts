@@ -2,6 +2,9 @@
 import { NUTRITION } from '@/lib/knowledge/constants';
 import type { Goal, Lifestyle, NutritionPhase, Sex, SportIntensity, Status, UserSport } from './types';
 import { clamp, lerp, round10, round5 } from './util';
+import { createLogger } from '@/lib/log';
+
+const log = createLogger('engine/nutrition');
 
 export function phaseForGoal(goal: Goal): NutritionPhase {
   if (goal === 'lean_gain') return 'gain';
@@ -85,6 +88,8 @@ export function isAboveFatThreshold(sex: Sex | null, bf?: number | null): boolea
 
 export function nutritionTargets(input: NutritionInput): NutritionTargets {
   const kg = input.bodyweightKg;
+  // Callers pass Number(db value); a bad value would turn every target into NaN.
+  if (!Number.isFinite(kg) || kg <= 0) log.debug('nutritionTargets: bad bodyweight', { kg });
   const ruleIds = ['N-MNT-01', 'N-MNT-02', 'N-MNT-04', 'N-SPT-01', 'N-SPT-02', 'N-SPT-03', 'N-PRO-01', 'N-FAT-01', 'N-CHO-01', 'N-MAC-01'];
   const warnings: NutritionTargets['warnings'] = [];
   const multiplier = input.multiplier ?? defaultMultiplier(input.lifestyle);

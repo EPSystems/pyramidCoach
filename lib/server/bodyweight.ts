@@ -6,13 +6,18 @@ import { addDays, daysBetween, mondayOf } from '@/lib/engine/util';
 import type { Status } from '@/lib/engine/types';
 import { toDisplay, type Units } from '@/lib/utils/units';
 import type { BwPoint } from '@/components/app/charts';
+import { createLogger } from '@/lib/log';
+
+const log = createLogger('server/bodyweight');
 
 export async function bodyweightSeries(supabase: Supa, userId: string, today: string, units: Units, opts: { days?: number; status: Status }) {
   const from = addDays(today, -(opts.days ?? 120));
-  const [{ data: rows }, { data: ns }] = await Promise.all([
+  const [rowsRes, nsRes] = await Promise.all([
     supabase.from('checkins').select('day, bodyweight_kg').eq('user_id', userId).gte('day', from).not('bodyweight_kg', 'is', null).order('day'),
     supabase.from('nutrition_settings').select('*').eq('user_id', userId).maybeSingle(),
   ]);
+  const { data: rows } = log.db('select weigh-ins', rowsRes, { userId });
+  const { data: ns } = log.db('select nutrition_settings', nsRes, { userId });
   const ins = (rows ?? []).map((r) => ({ day: r.day, kg: Number(r.bodyweight_kg) }));
   const weeks = weeklyAverages(ins);
   const running = runningAverage(ins, NUTRITION.weighIns.runningAvgDays[0]);

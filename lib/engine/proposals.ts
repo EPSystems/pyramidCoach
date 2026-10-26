@@ -147,7 +147,7 @@ export function applyProposal(plan: StoredPlan, p: Proposal): PlanDiff {
         for (const c of pl.changes) adj[c.muscle] = (adj[c.muscle] ?? 0) + (c.to - c.from);
         return { ...empty(), regenerate: { reason: 'plateau_add_volume', targetAdjustments: adj }, summary: pl.changes.map((c) => `${c.muscle}: +${c.to - c.from} sets/week`) };
       }
-      return { ...empty(), summary: ['Noted — fix the basics and reassess after another block.'] };
+      return { ...empty(), summary: ['Noted. Fix the basics and reassess after another block.'] };
     }
     case 'exercise_swap': {
       const pl = PAYLOAD_SCHEMAS.exercise_swap.parse(p.payload);

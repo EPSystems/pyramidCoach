@@ -8,7 +8,7 @@ import { baseInput, exById, sport } from './helpers';
 
 const g4 = () => baseInput({ sports: [sport('football', [2], 'hard'), sport('football', [6], 'match')] });
 
-describe('G4 — schedule around football', () => {
+describe('G4: schedule around football', () => {
   it('picks 4 lift days (Upper/Lower ×2), no lower on Mon/Fri/Sun, ≥1 rest day, deterministic', () => {
     const a = generateBlock(g4());
     const b = generateBlock(g4());
@@ -24,7 +24,7 @@ describe('G4 — schedule around football', () => {
   });
 });
 
-describe('G5 — volume targets for G4', () => {
+describe('G5: volume targets for G4', () => {
   it('base 12 − 2 = 10; football trims legs to 7; upper 10; front delts 5', () => {
     const { targets, base } = computeTargets(g4(), 'hypertrophy');
     const t = Object.fromEntries(targets.map((x) => [x.muscle, x.target]));
@@ -35,14 +35,14 @@ describe('G5 — volume targets for G4', () => {
   });
 });
 
-describe('G14 — fractional sets', () => {
+describe('G14: fractional sets', () => {
   it('bench press 3 sets → chest 3, front delts 3, triceps 1.5', () => {
     const bench = exById.get('bench-press')!;
     expect(fractionalSets(bench, 3)).toEqual({ chest: 3, front_delts: 3, triceps: 1.5 });
   });
 });
 
-describe('G15 — hamstring pain', () => {
+describe('G15: hamstring pain', () => {
   it('removes axial hamstring exercises and keeps leg curls', () => {
     const plan = generateBlock(
       baseInput({ injuries: [{ id: 'i1', muscleId: 'hamstrings', label: 'Hamstring', severity: 'pain', status: 'active', avoidExerciseIds: [] }] }),
