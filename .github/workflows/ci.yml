@@ -12,5 +12,6 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - uses: supabase/setup-cli@v1
+        with: { version: 2.122.0 } # match the supabase devDependency; older CLIs reject newer config.toml keys
       - run: supabase start && supabase db reset
       - run: pnpm test:coverage
