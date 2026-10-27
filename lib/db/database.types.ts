@@ -221,14 +221,14 @@ isOneToOne: false
                   ]
                 },"planned_exercises": {
                   Row: {
-                    "exercise_id": string,"id": string,"is_main_lift_single": boolean | null,"note": string | null,"position": number,"rep_max": number,"rep_min": number,"rest_seconds": number,"rir_max": number,"rir_min": number,"rule_ids": (string)[],"session_id": string,"sets": number,"skipped": boolean,"slot_key": string | null,"suggested_load_kg": number | null,"user_id": string
+                    "exercise_id": string,"id": string,"is_main_lift_single": boolean | null,"label": string | null,"note": string | null,"position": number,"rep_max": number,"rep_min": number,"rest_seconds": number,"rir_max": number,"rir_min": number,"rule_ids": (string)[],"session_id": string,"sets": number,"skipped": boolean,"slot_key": string | null,"suggested_load_kg": number | null,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "exercise_id": string,"id"?: string,"is_main_lift_single"?: boolean | null,"note"?: string | null,"position": number,"rep_max": number,"rep_min": number,"rest_seconds": number,"rir_max": number,"rir_min": number,"rule_ids"?: (string)[],"session_id": string,"sets": number,"skipped"?: boolean,"slot_key"?: string | null,"suggested_load_kg"?: number | null,"user_id": string
+                    "exercise_id": string,"id"?: string,"is_main_lift_single"?: boolean | null,"label"?: string | null,"note"?: string | null,"position": number,"rep_max": number,"rep_min": number,"rest_seconds": number,"rir_max": number,"rir_min": number,"rule_ids"?: (string)[],"session_id": string,"sets": number,"skipped"?: boolean,"slot_key"?: string | null,"suggested_load_kg"?: number | null,"user_id": string
                   }
                   Update: {
-                    "exercise_id"?: string,"id"?: string,"is_main_lift_single"?: boolean | null,"note"?: string | null,"position"?: number,"rep_max"?: number,"rep_min"?: number,"rest_seconds"?: number,"rir_max"?: number,"rir_min"?: number,"rule_ids"?: (string)[],"session_id"?: string,"sets"?: number,"skipped"?: boolean,"slot_key"?: string | null,"suggested_load_kg"?: number | null,"user_id"?: string
+                    "exercise_id"?: string,"id"?: string,"is_main_lift_single"?: boolean | null,"label"?: string | null,"note"?: string | null,"position"?: number,"rep_max"?: number,"rep_min"?: number,"rest_seconds"?: number,"rir_max"?: number,"rir_min"?: number,"rule_ids"?: (string)[],"session_id"?: string,"sets"?: number,"skipped"?: boolean,"slot_key"?: string | null,"suggested_load_kg"?: number | null,"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -451,6 +451,14 @@ isOneToOne: false
                            },
 "my_role":
 { Args: Record<PropertyKey, never>; Returns: string
+                           },
+"session_exercise_best_e1rm":
+{ Args: { "p_session_id": string }; Returns: {
+              "best_e1rm": number,"exercise_id": string
+            }[]
+                           },
+"session_exercise_history":
+{ Args: { "p_exposures": number,"p_session_id": string }; Returns: Database["public"]["Tables"]["logged_sets"]["Row"][]
                            },
 "replace_future_plan":
 { Args: { "p_block": Json,"p_from": string,"p_sessions": Json,"p_targets": Json }; Returns: string

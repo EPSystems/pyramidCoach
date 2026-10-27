@@ -5,8 +5,11 @@ import { z } from 'zod';
 import { ALL_MUSCLES } from '@/lib/engine/types';
 import { suggestNextSet } from '@/lib/engine/progression';
 import { moveWarnings } from '@/lib/engine/schedule';
+import { MAX_SETS_PER_EXERCISE } from '@/lib/engine/session';
+import { isValidSwap } from '@/lib/engine/swap';
+import type { Equipment } from '@/lib/engine/types';
 import { isoWeekday, mondayOf, addDays } from '@/lib/engine/util';
-import { getUserContext, requireUser } from '@/lib/server/context';
+import { getUserContext, loadExercises, requireUser } from '@/lib/server/context';
 import { recomputeNutrition } from '@/lib/server/plan';
 import { todayIn } from '@/lib/utils/dates';
 import { createLogger } from '@/lib/log';
@@ -63,7 +66,15 @@ export async function saveCheckin(raw: z.input<typeof CheckinInput>): Promise<Re
 }
 
 /** Merge soreness tags into today's check-in (logger finish screen). */
-export async function addSoreness(tags: Partial<Record<string, 'sore' | 'pain'>>): Promise<Result> {
+const SorenessTags = z.partialRecord(z.enum(ALL_MUSCLES), z.enum(['sore', 'pain']));
+
+export async function addSoreness(raw: Partial<Record<string, 'sore' | 'pain'>>): Promise<Result> {
+  const p = SorenessTags.safeParse(raw);
+  if (!p.success) {
+    log.warn('addSoreness: invalid input', { issues: p.error.issues.map((i) => i.path.join('.')) });
+    return fail('Invalid soreness tags');
+  }
+  const tags = p.data;
   const { supabase, user, today } = await userToday();
   log.debug('addSoreness', { userId: user.id, muscles: Object.keys(tags).length });
   // A failed read must not be treated as "no check-in yet": the upsert would overwrite today's check-in with nulls.
@@ -135,9 +146,11 @@ const LogSetInput = z.object({
   rir: z.number().min(0).max(10).nullable(),
   rx: z.object({ repMin: z.number(), repMax: z.number(), rirMin: z.number(), rirMax: z.number() }),
   increment: z.number().positive(),
+  /** Warm-up sets (T-WUP-01) have their own set_index sequence and never count toward volume, e1RM or PRs. */
+  isWarmup: z.boolean().optional(),
 });
 
-/** Idempotent on (planned_exercise_id, set_index) (Section 11). Returns the next-set suggestion (6.10). */
+/** Idempotent on (planned_exercise_id, is_warmup, set_index) (Section 11). Returns the next-set suggestion (6.10). */
 export async function logSet(raw: z.input<typeof LogSetInput>): Promise<Result<{ id: string; next: { load: number | null; repsTarget: number; ruleIds: string[] } }>> {
   const p = LogSetInput.safeParse(raw);
   if (!p.success) {
@@ -160,9 +173,9 @@ export async function logSet(raw: z.input<typeof LogSetInput>): Promise<Result<{
         load_kg: d.loadKg,
         reps: d.reps,
         rir: d.rir,
-        is_warmup: false,
+        is_warmup: d.isWarmup ?? false,
       },
-      { onConflict: 'planned_exercise_id,set_index' },
+      { onConflict: 'planned_exercise_id,is_warmup,set_index' },
     )
     .select('id')
     .single(), { sessionId: d.sessionId, plannedExerciseId: d.plannedExerciseId, setIndex: d.setIndex });
@@ -170,17 +183,20 @@ export async function logSet(raw: z.input<typeof LogSetInput>): Promise<Result<{
   // A session left 'planned' would be deleted with its sets by the next plan regeneration. The set upsert is idempotent, so a retry is safe.
   const { error: sErr } = log.db('update planned_sessions -> in_progress', await supabase.from('planned_sessions').update({ status: 'in_progress' }).eq('id', d.sessionId).eq('user_id', user.id).eq('status', 'planned'), { sessionId: d.sessionId });
   if (sErr) return fail(sErr.message);
-  const next = suggestNextSet({ rx: d.rx, setIndex: d.setIndex, load: d.loadKg, reps: d.reps, increment: d.increment });
+  // A warm-up doesn't steer the working sets: echo it back unchanged.
+  const next = d.isWarmup
+    ? { load: d.loadKg, repsTarget: d.reps, ruleIds: ['T-WUP-01'] }
+    : suggestNextSet({ rx: d.rx, setIndex: d.setIndex, load: d.loadKg, reps: d.reps, increment: d.increment });
   return { ok: true, data: { id: data.id, next } };
 }
 
-export async function deleteSet(plannedExerciseId: string, setIndex: number): Promise<Result> {
+export async function deleteSet(plannedExerciseId: string, setIndex: number, isWarmup = false): Promise<Result> {
   const { supabase, user } = await requireUser();
-  log.debug('deleteSet', { plannedExerciseId, setIndex });
+  log.debug('deleteSet', { plannedExerciseId, setIndex, isWarmup });
   const { error } = log.db(
     'delete logged_sets',
-    await supabase.from('logged_sets').delete().eq('user_id', user.id).eq('planned_exercise_id', plannedExerciseId).eq('set_index', setIndex),
-    { plannedExerciseId, setIndex },
+    await supabase.from('logged_sets').delete().eq('user_id', user.id).eq('planned_exercise_id', plannedExerciseId).eq('is_warmup', isWarmup).eq('set_index', setIndex),
+    { plannedExerciseId, setIndex, isWarmup },
   );
   if (error) return fail(error.message);
   return { ok: true };
@@ -191,7 +207,8 @@ export async function addSetToExercise(plannedExerciseId: string): Promise<Resul
   const { data, error: readErr } = log.db('select planned_exercises.sets', await supabase.from('planned_exercises').select('sets').eq('id', plannedExerciseId).eq('user_id', user.id).maybeSingle(), { plannedExerciseId });
   if (readErr) return fail(readErr.message);
   if (!data) return fail('Not found');
-  const { error } = log.db('update planned_exercises.sets', await supabase.from('planned_exercises').update({ sets: Math.min(10, data.sets + 1) }).eq('id', plannedExerciseId).eq('user_id', user.id), { plannedExerciseId });
+  if (data.sets >= MAX_SETS_PER_EXERCISE) return fail(`${MAX_SETS_PER_EXERCISE} sets is the limit for one exercise: past ~11 sets for a muscle in one session, extra sets are mostly junk volume (T-FRQ-01).`);
+  const { error } = log.db('update planned_exercises.sets', await supabase.from('planned_exercises').update({ sets: data.sets + 1 }).eq('id', plannedExerciseId).eq('user_id', user.id), { plannedExerciseId });
   if (error) return fail(error.message);
   return { ok: true };
 }
@@ -212,11 +229,23 @@ export async function saveExerciseNote(plannedExerciseId: string, note: string):
 
 /** Swap exercise (6.15). scope 'session' = local; 'block' = every future planned exercise of the same kind. */
 export async function swapExercise(plannedExerciseId: string, toExerciseId: string, scope: 'session' | 'block'): Promise<Result> {
-  const { supabase, user, today } = await userToday();
+  const { supabase, user, today, settings, injuries } = await userToday();
   log.debug('swapExercise', { plannedExerciseId, toExerciseId, scope });
-  const { data: pe, error: peErr } = log.db('select planned_exercises', await supabase.from('planned_exercises').select('exercise_id, session_id').eq('id', plannedExerciseId).eq('user_id', user.id).maybeSingle(), { plannedExerciseId });
+  if (!settings) return fail('Not found');
+  const [peRes, exercises] = await Promise.all([
+    supabase.from('planned_exercises').select('exercise_id, session_id').eq('id', plannedExerciseId).eq('user_id', user.id).maybeSingle(),
+    loadExercises(supabase),
+  ]);
+  const { data: pe, error: peErr } = log.db('select planned_exercises', peRes, { plannedExerciseId });
   if (peErr) return fail(peErr.message);
   if (!pe) return fail('Not found');
+  // Same list the logger offers (same muscle, equipment, injuries, dislikes), so a crafted request can't swap in anything else.
+  const from = exercises.find((e) => e.id === pe.exercise_id);
+  const ctxSel = { exercises, equipment: settings.equipment as Equipment[], injuries, disliked: settings.disliked_exercise_ids };
+  if (!from || !isValidSwap(from, toExerciseId, ctxSel)) {
+    log.warn('swapExercise: not a valid substitute', { plannedExerciseId, from: pe.exercise_id, toExerciseId });
+    return fail('That exercise is not a valid swap here. Pick one from the list.');
+  }
   const { error: swapErr } = log.db('update planned_exercises.exercise_id', await supabase.from('planned_exercises').update({ exercise_id: toExerciseId, suggested_load_kg: null }).eq('id', plannedExerciseId).eq('user_id', user.id), { plannedExerciseId, toExerciseId });
   if (swapErr) return fail(swapErr.message);
   if (scope === 'block') {

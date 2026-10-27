@@ -311,6 +311,8 @@ export interface ExerciseHistory {
   increment: number;
   e1rm?: number | null;
   heavyLowerBarbell?: boolean;
+  /** Training status, for the T-PRG-06 pace check. Omitted = no pace check. */
+  status?: Status;
 }
 
 export interface SessionSuggestion extends RuleTagged {

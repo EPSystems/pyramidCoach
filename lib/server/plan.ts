@@ -196,7 +196,7 @@ export async function regeneratePlan(supabase: Supa, userId: string, opts: Regen
         rest_seconds: e.restSeconds,
         suggested_load_kg: e.suggestedLoadKg ?? '',
         is_main_lift_single: !!e.isMainLiftSingle,
-        note: e.note ?? null,
+        label: e.note ?? null, // engine label ("Top single…", "Back-off…"); user notes live in planned_exercises.note
         rule_ids: e.ruleIds,
       })),
     }))),
