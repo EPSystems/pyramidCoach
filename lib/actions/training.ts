@@ -8,6 +8,7 @@ import { moveWarnings } from '@/lib/engine/schedule';
 import { isoWeekday, mondayOf, addDays } from '@/lib/engine/util';
 import { getUserContext, requireUser } from '@/lib/server/context';
 import { recomputeNutrition } from '@/lib/server/plan';
+import { refreshTargetsAfterWeighIn } from '@/lib/server/bodyweight';
 import { todayIn } from '@/lib/utils/dates';
 import { createLogger } from '@/lib/log';
 
@@ -58,6 +59,7 @@ export async function saveCheckin(raw: z.input<typeof CheckinInput>): Promise<Re
   }), { userId: user.id, day });
   if (error) return fail(error.message);
   log.db('update profiles.last_active_at', await supabase.from('profiles').update({ last_active_at: new Date().toISOString() }).eq('user_id', user.id), { userId: user.id });
+  if (p.data.bodyweightKg != null) await refreshTargetsAfterWeighIn(supabase, user.id);
   revalidatePath('/', 'layout');
   return { ok: true };
 }
@@ -80,7 +82,7 @@ export async function addSoreness(tags: Partial<Record<string, 'sore' | 'pain'>>
   return { ok: true };
 }
 
-export async function logWeighIn(kg: number, day?: string): Promise<Result> {
+export async function logWeighIn(kg: number, day?: string): Promise<Result<{ targetsUpdated: boolean }>> {
   if (!(kg > 30 && kg < 300)) {
     log.warn('logWeighIn: invalid weight', { kg });
     return fail('Invalid weight');
@@ -101,8 +103,10 @@ export async function logWeighIn(kg: number, day?: string): Promise<Result> {
   // The check-in is saved; a retry is idempotent (it takes the update branch above).
   const { error: pErr } = log.db('update profiles.bodyweight_kg', await supabase.from('profiles').update({ bodyweight_kg: kg }).eq('user_id', user.id), { userId: user.id });
   if (pErr) return fail(pErr.message);
+  // New bodyweight flows straight into the targets when it moves the averaged weight enough (DECISIONS 37).
+  const { refreshed } = await refreshTargetsAfterWeighIn(supabase, user.id);
   revalidatePath('/', 'layout');
-  return { ok: true };
+  return { ok: true, data: { targetsUpdated: refreshed } };
 }
 
 // ---------------------------------------------------------------------------
@@ -367,6 +371,6 @@ export async function refreshNutritionNow(): Promise<Result> {
     log.error('refreshNutritionNow failed', { userId: user.id, err: e });
     return fail(e instanceof Error ? e.message : 'Could not refresh nutrition');
   }
-  revalidatePath('/nutrition');
+  revalidatePath('/', 'layout');
   return { ok: true };
 }

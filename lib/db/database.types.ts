@@ -207,14 +207,14 @@ isOneToOne: false
                   ]
                 },"nutrition_targets": {
                   Row: {
-                    "carbs_g": number,"carbs_min_g": number,"created_at": string | null,"effective_from": string,"fat_g": number,"fat_min_g": number,"id": string,"kcal": number,"kcal_high": number,"kcal_low": number,"maintenance_kcal": number | null,"protein_g": number,"reason": string,"sport_kcal_per_day": number,"user_id": string
+                    "bodyweight_kg": number | null,"carbs_g": number,"carbs_min_g": number,"created_at": string | null,"effective_from": string,"fat_g": number,"fat_min_g": number,"id": string,"kcal": number,"kcal_high": number,"kcal_low": number,"maintenance_kcal": number | null,"protein_g": number,"reason": string,"sport_kcal_per_day": number,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "carbs_g": number,"carbs_min_g": number,"created_at"?: string | null,"effective_from": string,"fat_g": number,"fat_min_g": number,"id"?: string,"kcal": number,"kcal_high": number,"kcal_low": number,"maintenance_kcal"?: number | null,"protein_g": number,"reason": string,"sport_kcal_per_day"?: number,"user_id": string
+                    "bodyweight_kg"?: number | null,"carbs_g": number,"carbs_min_g": number,"created_at"?: string | null,"effective_from": string,"fat_g": number,"fat_min_g": number,"id"?: string,"kcal": number,"kcal_high": number,"kcal_low": number,"maintenance_kcal"?: number | null,"protein_g": number,"reason": string,"sport_kcal_per_day"?: number,"user_id": string
                   }
                   Update: {
-                    "carbs_g"?: number,"carbs_min_g"?: number,"created_at"?: string | null,"effective_from"?: string,"fat_g"?: number,"fat_min_g"?: number,"id"?: string,"kcal"?: number,"kcal_high"?: number,"kcal_low"?: number,"maintenance_kcal"?: number | null,"protein_g"?: number,"reason"?: string,"sport_kcal_per_day"?: number,"user_id"?: string
+                    "bodyweight_kg"?: number | null,"carbs_g"?: number,"carbs_min_g"?: number,"created_at"?: string | null,"effective_from"?: string,"fat_g"?: number,"fat_min_g"?: number,"id"?: string,"kcal"?: number,"kcal_high"?: number,"kcal_low"?: number,"maintenance_kcal"?: number | null,"protein_g"?: number,"reason"?: string,"sport_kcal_per_day"?: number,"user_id"?: string
                   }
                   Relationships: [
                     

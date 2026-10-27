@@ -2,10 +2,11 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Scale } from 'lucide-react';
+import { RefreshCw, Scale } from 'lucide-react';
 import { toast } from 'sonner';
 import { updatePhase } from '@/lib/actions/nutrition';
-import { logWeighIn } from '@/lib/actions/training';
+import { logWeighIn, refreshNutritionNow } from '@/lib/actions/training';
+import { allowedRatePcts } from '@/lib/engine/nutrition';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Segmented, Why } from '@/components/app/bits';
@@ -28,7 +29,7 @@ export function WeighInForm({ units }: { units: Units }) {
           const r = await logWeighIn(fromDisplay(n, units));
           if (!r.ok) toast.error(r.error);
           else {
-            toast.success('Weigh-in saved');
+            toast.success(r.data?.targetsUpdated ? 'Weigh-in saved. Targets updated to your new bodyweight.' : 'Weigh-in saved');
             setV('');
             router.refresh();
           }
@@ -43,17 +44,40 @@ export function WeighInForm({ units }: { units: Units }) {
   );
 }
 
-export function PhaseEditor({ phase, rate, status }: { phase: 'gain' | 'maintain' | 'loss'; rate: number; status: Status }) {
-  const [p, setP] = useState(phase);
-  const [r, setR] = useState(rate || (phase === 'loss' ? 0.75 : NUTRITION.gainDefault[status]));
+/** Re-runs the target calculation with the latest bodyweight, sports and settings (a rebase, not an adjustment). */
+export function RecalculateButton() {
   const [pending, start] = useTransition();
   const router = useRouter();
-  const options =
-    p === 'loss'
-      ? [0.5, 0.75, 1].map((x) => ({ value: x, label: `${x}%/wk` }))
-      : p === 'gain'
-        ? [0.5, 1, 1.5, 2].filter((x) => x <= NUTRITION.gainRatePctPerMonth[status][1] || x === NUTRITION.gainDefault[status]).map((x) => ({ value: x, label: `${x}%/mo` }))
-        : [];
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      disabled={pending}
+      onClick={() =>
+        start(async () => {
+          const r = await refreshNutritionNow();
+          if (!r.ok) toast.error(r.error);
+          else {
+            toast.success('Targets recalculated');
+            router.refresh();
+          }
+        })
+      }
+    >
+      <RefreshCw className={pending ? 'animate-spin' : undefined} /> Recalculate
+    </Button>
+  );
+}
+
+const defaultRate = (p: 'gain' | 'maintain' | 'loss', status: Status) => (p === 'loss' ? NUTRITION.lossRatePctPerWeek.default : p === 'gain' ? NUTRITION.gainDefault[status] : 0);
+
+export function PhaseEditor({ phase, rate, status }: { phase: 'gain' | 'maintain' | 'loss'; rate: number; status: Status }) {
+  const [p, setP] = useState(phase);
+  const [r, setR] = useState(rate || defaultRate(phase, status));
+  const [pending, start] = useTransition();
+  const router = useRouter();
+  // Same list the server accepts (N-RAT-01 for loss, the status's N-RAT-02 range for gain).
+  const options = allowedRatePcts(p, status).map((x) => ({ value: x, label: `${x}%/${p === 'loss' ? 'wk' : 'mo'}` }));
   return (
     <div className="mt-5 space-y-3 border-t pt-4">
       <p className="text-sm font-medium">Change phase</p>
@@ -62,7 +86,7 @@ export function PhaseEditor({ phase, rate, status }: { phase: 'gain' | 'maintain
         value={p}
         onChange={(v) => {
           setP(v);
-          setR(v === 'loss' ? 0.75 : v === 'gain' ? NUTRITION.gainDefault[status] : 0);
+          setR(defaultRate(v, status));
         }}
         options={[
           { value: 'gain', label: 'Gain' },

@@ -1,107 +1,135 @@
 import type { Metadata } from 'next';
-import { requireOnboarded, loadExercises, mapSet } from '@/lib/server/context';
+import Link from 'next/link';
+import { Download } from 'lucide-react';
+import { requireOnboarded } from '@/lib/server/context';
 import { bodyweightSeries } from '@/lib/server/bodyweight';
+import { loadProgressData, VOLUME_WEEKS } from '@/lib/server/progress';
 import { PageHeader, Why } from '@/components/app/bits';
 import { AdherenceBars, BodyweightChart, TrendLine, VolumeMini } from '@/components/app/charts';
-import { addDays, mondayOf } from '@/lib/engine/util';
-import { e1rm } from '@/lib/engine/e1rm';
+import { Button } from '@/components/ui/button';
+import { addDays, daysBetween, mondayOf } from '@/lib/engine/util';
 import { loggedMuscleSets } from '@/lib/engine/counting';
+import { adherenceBuckets, exerciseTrend, liftStallFlags, mainLiftSeries, parseRange, PROGRESS_RANGES, rangeStart, type Point, type ProgressRange } from '@/lib/engine/progress';
 import { TRACKED_MUSCLES, type MainLift, type Status } from '@/lib/engine/types';
 import { MUSCLE_SHORT } from '@/lib/knowledge/muscles';
 import { fmtLoad, toDisplay } from '@/lib/utils/units';
+import { prettyDate } from '@/lib/utils/dates';
+import { cn } from '@/lib/utils';
 import { ExerciseHistory, type HistoryExercise } from './exercise-history';
 
 export const metadata: Metadata = { title: 'Progress' };
 
 const LIFT_NAMES: Record<MainLift, string> = { squat: 'Squat', bench: 'Bench press', deadlift: 'Deadlift', ohp: 'Overhead press' };
+const RANGE_LABEL: Record<ProgressRange, string> = { '3m': '3 months', '6m': '6 months', '1y': '1 year', all: 'All time' };
+const RANGE_SHORT: Record<ProgressRange, string> = { '3m': '3M', '6m': '6M', '1y': '1Y', all: 'All' };
+const EXPORTS = [
+  { type: 'sets', label: 'Logged sets' },
+  { type: 'weighins', label: 'Weigh-ins' },
+  { type: 'checkins', label: 'Check-ins' },
+  { type: 'nutrition', label: 'Nutrition targets' },
+] as const;
 
-export default async function ProgressPage() {
+export default async function ProgressPage({ searchParams }: PageProps<'/progress'>) {
+  const sp = await searchParams;
+  const range = parseRange(sp.range);
   const ctx = await requireOnboarded();
   const { supabase, user, today, units, settings } = ctx;
-  const since = addDays(today, -180);
-  const [exercises, { data: setRows }, { data: sessions }, bw] = await Promise.all([
-    loadExercises(supabase),
-    supabase.from('logged_sets').select('*').eq('user_id', user.id).gte('performed_on', since).order('performed_on'),
-    supabase.from('planned_sessions').select('scheduled_on, status').eq('user_id', user.id).gte('scheduled_on', addDays(mondayOf(today), -7 * 7)).lt('scheduled_on', addDays(mondayOf(today), 7)),
-    bodyweightSeries(supabase, user.id, today, units, { status: settings.training_status as Status }),
+  const status = settings.training_status as Status;
+  const start = rangeStart(today, range);
+  const [data, bw] = await Promise.all([
+    loadProgressData(supabase, user.id, today, range),
+    bodyweightSeries(supabase, user.id, today, units, { days: start ? daysBetween(start, today) : null, status }),
   ]);
+  const { exercises, sets: allSets, from } = data;
   const exMap = new Map(exercises.map((e) => [e.id, e]));
-  const sets = (setRows ?? []).map(mapSet).filter((s) => !s.isWarmup);
+  // Sets inside the chosen range; stall flags use the full (≥ 26-week) fetch so they don't depend on the range.
+  const sets = from ? allSets.filter((s) => s.performedOn >= from) : allSets;
   const seeds = settings.e1rm_seeds as Partial<Record<MainLift, number>>;
+  const disp = (kg: number) => toDisplay(Math.round(kg * 10) / 10, units)!;
+  const toDisp = (pts: Point[]) => pts.map((p) => ({ x: p.x, y: disp(p.y) }));
 
-  // Main lifts: best e1RM per day across all variations of that lift.
-  const lifts = (Object.keys(LIFT_NAMES) as MainLift[]).map((lift) => {
-    const byDay = new Map<string, number>();
-    for (const s of sets) {
-      const ex = exMap.get(s.exerciseId);
-      if (ex?.mainLiftKey !== lift) continue;
-      const v = e1rm(s.loadKg, s.reps, s.rir);
-      if (v != null) byDay.set(s.performedOn, Math.max(byDay.get(s.performedOn) ?? 0, v));
-    }
-    const series = [...byDay.entries()].sort().map(([x, y]) => ({ x, y: toDisplay(Math.round(y * 10) / 10, units)! }));
-    const baseline = seeds[lift] ?? (series[0] ? series[0].y : null);
+  // Main lifts: best e1RM per day across all variations of that lift (T-EST-01).
+  const liftKeys = Object.keys(LIFT_NAMES) as MainLift[];
+  const fullSeries = Object.fromEntries(liftKeys.map((l) => [l, mainLiftSeries(allSets, exMap, l)])) as Record<MainLift, Point[]>;
+  const stalls = new Map(liftStallFlags(fullSeries, status, today).map((f) => [f.lift, f]));
+  const lifts = liftKeys.map((lift) => {
+    const series = toDisp(from ? fullSeries[lift].filter((p) => p.x >= from) : fullSeries[lift]);
+    const baseline = seeds[lift] != null ? toDisplay(seeds[lift]!, units) : (series[0]?.y ?? null);
     const best = series.length ? Math.max(...series.map((p) => p.y)) : null;
     const latest = series.at(-1)?.y ?? null;
-    return { lift, series, baseline: baseline != null ? toDisplay(baseline, units) : null, best, latest };
+    return { lift, series, baseline, best, latest, stall: stalls.get(lift) };
   });
   const shownLifts = lifts.filter((l) => l.series.length || l.baseline != null);
 
-  // Weekly volume, last 8 weeks.
-  const weeks = Array.from({ length: 8 }, (_, i) => addDays(mondayOf(today), -7 * (7 - i)));
-  const vol = weeks.map((w) => ({ w, m: loggedMuscleSets(sets, exMap, w) }));
-  const { data: block } = await supabase.from('blocks').select('id, starts_on').eq('user_id', user.id).eq('status', 'active').maybeSingle();
-  const { data: targets } = block ? await supabase.from('weekly_targets').select('muscle_id, target_sets, week_index').eq('block_id', block.id) : { data: [] };
-  const curWeek = block ? Math.max(0, Math.floor((Date.parse(mondayOf(today)) - Date.parse(block.starts_on)) / 604800000)) : 0;
+  // Weekly volume, last 8 weeks (independent of the range).
+  const weeks = Array.from({ length: VOLUME_WEEKS }, (_, i) => addDays(mondayOf(today), -7 * (VOLUME_WEEKS - 1 - i)));
+  const vol = weeks.map((w) => ({ w, m: loggedMuscleSets(allSets, exMap, w) }));
   const maxVol = Math.max(20, ...vol.flatMap((v) => TRACKED_MUSCLES.map((m) => v.m[m])));
 
-  // Adherence.
-  const adherence = weeks.map((w) => {
-    const inWeek = (sessions ?? []).filter((s) => s.scheduled_on >= w && s.scheduled_on < addDays(w, 7));
-    return { week: w, done: inWeek.filter((s) => s.status === 'done').length, planned: inWeek.length };
-  });
+  // Adherence: weekly for 3 months, monthly beyond.
+  const bucket = range === '3m' ? 'week' : 'month';
+  const adherence = adherenceBuckets(data.sessions, data.adherenceFrom, today, bucket);
 
   // Per-exercise history.
   const history: HistoryExercise[] = [...new Set(sets.map((s) => s.exerciseId))]
     .map((id) => {
-      const ex = exMap.get(id);
+      const mine = sets.filter((x) => x.exerciseId === id);
       const byDay = new Map<string, typeof sets>();
-      for (const s of sets.filter((x) => x.exerciseId === id)) byDay.set(s.performedOn, [...(byDay.get(s.performedOn) ?? []), s]);
+      for (const s of mine) byDay.set(s.performedOn, [...(byDay.get(s.performedOn) ?? []), s]);
       const days = [...byDay.entries()].sort(([a], [b]) => (a < b ? 1 : -1));
+      const trend = exerciseTrend(mine);
       return {
         id,
-        name: ex?.name ?? 'Exercise',
+        name: exMap.get(id)?.name ?? 'Exercise',
         rows: days.map(([date, ss]) => {
-          const sorted = ss.sort((a, b) => a.setIndex - b.setIndex);
+          const sorted = [...ss].sort((a, b) => a.setIndex - b.setIndex);
           return { date, text: sorted.map((s) => `${fmtLoad(s.loadKg, units)} × ${s.reps}`).join(' · '), rir: sorted.map((s) => s.rir ?? '–').join(', ') };
         }),
-        trend: days
-          .map(([date, ss]) => {
-            const f = ss.sort((a, b) => a.setIndex - b.setIndex)[0];
-            const v = e1rm(f.loadKg, f.reps, f.rir);
-            return v ? { x: date, y: toDisplay(Math.round(v * 10) / 10, units)! } : null;
-          })
-          .filter((x): x is { x: string; y: number } => !!x)
-          .reverse(),
+        metric: trend.metric,
+        trend: trend.metric === 'reps' ? trend.points : toDisp(trend.points),
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div className="mx-auto max-w-6xl">
-      <PageHeader kicker="Trends" title="Progress" />
+      <PageHeader kicker="Trends" title="Progress">
+        <nav aria-label="History range" className="bg-muted/70 flex gap-1 rounded-xl p-1">
+          {PROGRESS_RANGES.map((r) => (
+            <Link
+              key={r}
+              href={`/progress?range=${r}`}
+              aria-current={r === range ? 'page' : undefined}
+              aria-label={RANGE_LABEL[r]}
+              className={cn('num flex h-11 min-w-12 items-center justify-center rounded-lg px-3 text-sm font-semibold', r === range ? 'bg-volt text-volt-ink shadow-sm' : 'text-muted-foreground hover:text-foreground')}
+            >
+              {RANGE_SHORT[r]}
+            </Link>
+          ))}
+        </nav>
+      </PageHeader>
       <div className="rise space-y-4 px-4 sm:px-6 lg:px-8">
         <section className="bg-card rounded-2xl border p-5">
           <div className="flex items-baseline justify-between">
             <h2 className="font-display text-2xl font-bold uppercase">Main lifts · e1RM</h2>
-            <Why ruleIds={['T-STR-01']} label="How?" />
+            <Why ruleIds={['T-EST-01']} label="How?" />
           </div>
-          <p className="text-muted-foreground text-xs">Estimated 1-rep max from your best set each day (reps + RIR ≤ 12).</p>
+          <p className="text-muted-foreground text-xs">
+            Estimated 1-rep max from your best set each day (reps + RIR ≤ 12) · {RANGE_LABEL[range].toLowerCase()}.
+          </p>
           {shownLifts.length ? (
             <>
               <div className="mt-4 grid gap-5 md:grid-cols-2">
                 {shownLifts.map((l) => (
                   <div key={l.lift}>
-                    <p className="text-sm font-semibold">{LIFT_NAMES[l.lift]}</p>
+                    <p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                      {LIFT_NAMES[l.lift]}
+                      {l.stall?.stalled && (
+                        <span className="bg-warn/15 text-warn rounded-full px-2 py-0.5 text-xs font-medium">
+                          Stalled{l.stall.lastPrOn ? ` · best ${prettyDate(l.stall.lastPrOn, { weekday: false })}` : ''}
+                        </span>
+                      )}
+                    </p>
                     <TrendLine data={l.series} unit={units} baseline={l.baseline} label={`${LIFT_NAMES[l.lift]} e1RM`} />
                   </div>
                 ))}
@@ -130,23 +158,28 @@ export default async function ProgressPage() {
                   ))}
                 </tbody>
               </table>
+              {shownLifts.some((l) => l.stall?.stalled) && (
+                <p className="text-muted-foreground mt-3 text-xs">
+                  Stalled = no new best for longer than expected for a {status} lifter (same test as the weekly review, which suggests what to do). <Why ruleIds={['T-PRG-06']} />
+                </p>
+              )}
             </>
           ) : (
             <p className="text-muted-foreground py-6 text-sm">Log squat, bench, deadlift or OHP sets to see estimates here.</p>
           )}
         </section>
 
-        <ExerciseHistory exercises={history} />
+        <ExerciseHistory exercises={history} unit={units} />
 
         <section className="bg-card rounded-2xl border p-5">
           <div className="flex items-baseline justify-between">
-            <h2 className="font-display text-2xl font-bold uppercase">Weekly sets · 8 weeks</h2>
+            <h2 className="font-display text-2xl font-bold uppercase">Weekly sets · {VOLUME_WEEKS} weeks</h2>
             <Why ruleIds={['T-VOL-05', 'T-VOL-06']} />
           </div>
           <p className="text-muted-foreground text-xs">Same scale (0–{maxVol}) on every panel; shaded band = this block’s target ±1.</p>
           <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-4">
             {TRACKED_MUSCLES.map((m) => {
-              const t = targets?.find((x) => x.muscle_id === m && x.week_index === curWeek);
+              const t = data.targets.find((x) => x.muscle_id === m && x.week_index === data.blockWeek);
               const thisWeek = vol[vol.length - 1].m[m];
               return (
                 <div key={m}>
@@ -180,12 +213,31 @@ export default async function ProgressPage() {
           </section>
           <section className="bg-card rounded-2xl border p-5">
             <h2 className="font-display text-2xl font-bold uppercase">Adherence</h2>
-            <p className="text-muted-foreground text-xs">Sessions done vs planned per week</p>
+            <p className="text-muted-foreground text-xs">Sessions done vs planned per {bucket}</p>
             <div className="mt-3">
-              <AdherenceBars data={adherence} />
+              <AdherenceBars data={adherence} bucket={bucket} />
             </div>
           </section>
         </div>
+
+        <section className="bg-card rounded-2xl border p-5">
+          <h2 className="font-display text-2xl font-bold uppercase">Your data</h2>
+          <p className="text-muted-foreground text-xs">Full history, whatever range is shown above.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {EXPORTS.map((e) => (
+              <Button key={e.type} asChild variant="outline">
+                <a href={`/api/export?format=csv&type=${e.type}`}>
+                  <Download /> {e.label} (CSV)
+                </a>
+              </Button>
+            ))}
+            <Button asChild variant="outline">
+              <a href="/api/export?format=json">
+                <Download /> Everything (JSON)
+              </a>
+            </Button>
+          </div>
+        </section>
       </div>
     </div>
   );

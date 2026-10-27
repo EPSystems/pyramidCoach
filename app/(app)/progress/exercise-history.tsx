@@ -6,15 +6,21 @@ import { Input } from '@/components/ui/input';
 import { TrendLine } from '@/components/app/charts';
 import { prettyDate } from '@/lib/utils/dates';
 import { cn } from '@/lib/utils';
+import type { TrendMetric } from '@/lib/engine/progress';
+import type { Units } from '@/lib/utils/units';
 
 export interface HistoryExercise {
   id: string;
   name: string;
   rows: { date: string; text: string; rir: string }[];
+  /** e1RM when most days have one; volume load or total reps for high-rep work (T-EST-01 skips > 12 effective reps). */
+  metric: TrendMetric;
   trend: { x: string; y: number }[];
 }
 
-export function ExerciseHistory({ exercises }: { exercises: HistoryExercise[] }) {
+const METRIC_LABEL: Record<TrendMetric, string> = { e1rm: 'first-set e1RM', volume_load: 'volume load (load × reps)', reps: 'total reps' };
+
+export function ExerciseHistory({ exercises, unit }: { exercises: HistoryExercise[]; unit: Units }) {
   const [q, setQ] = useState('');
   const [sel, setSel] = useState<string | null>(exercises[0]?.id ?? null);
   const list = useMemo(() => exercises.filter((e) => e.name.toLowerCase().includes(q.toLowerCase())), [q, exercises]);
@@ -43,8 +49,11 @@ export function ExerciseHistory({ exercises }: { exercises: HistoryExercise[] })
           </div>
           {cur && (
             <div className="min-w-0">
-              <p className="text-sm font-semibold">{cur.name} · first-set e1RM</p>
-              <TrendLine data={cur.trend} unit="" label={`${cur.name} first set`} height={150} />
+              <p className="text-sm font-semibold">
+                {cur.name} · {METRIC_LABEL[cur.metric]}
+              </p>
+              {cur.metric !== 'e1rm' && <p className="text-muted-foreground text-xs">These sets are above 12 reps + RIR, too far from a max for an e1RM estimate.</p>}
+              <TrendLine data={cur.trend} unit={cur.metric === 'reps' ? 'reps' : unit} label={`${cur.name} ${METRIC_LABEL[cur.metric]}`} height={150} />
               <table className="num mt-3 w-full text-sm">
                 <thead className="text-muted-foreground text-left text-xs">
                   <tr>

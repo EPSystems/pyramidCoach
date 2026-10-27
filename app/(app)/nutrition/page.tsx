@@ -6,11 +6,12 @@ import { PageHeader, Stat, Why } from '@/components/app/bits';
 import { BodyweightChart } from '@/components/app/charts';
 import { ProposalCard, type ProposalView } from '@/components/app/proposal-card';
 import { daysBetween } from '@/lib/engine/util';
+import { buildCutDays, type PhaseSpan } from '@/lib/engine/nutrition';
 import { NUTRITION } from '@/lib/knowledge/constants';
 import type { Status } from '@/lib/engine/types';
 import { fmtNum, toDisplay } from '@/lib/utils/units';
 import { prettyDate } from '@/lib/utils/dates';
-import { PhaseEditor, WeighInForm } from './client';
+import { PhaseEditor, RecalculateButton, WeighInForm } from './client';
 import { cn } from '@/lib/utils';
 
 export const metadata: Metadata = { title: 'Nutrition' };
@@ -37,10 +38,7 @@ export default async function NutritionPage() {
   const hide = !!profile.hide_bodyweight;
   const phase = (ns?.phase ?? 'maintain') as keyof typeof PHASE_LABEL;
   const weeksIn = ns ? Math.floor(daysBetween(ns.phase_started_on, today) / 7) : 0;
-  const history = (ns?.phase_history as { phase: string; from: string; to: string | null }[]) ?? [];
-  const days = (h: { from: string; to: string | null }) => daysBetween(h.from, h.to ?? today);
-  const cutDays = history.filter((h) => h.phase === 'loss').reduce((a, h) => a + days(h), 0);
-  const buildDays = history.filter((h) => h.phase !== 'loss').reduce((a, h) => a + days(h), 0);
+  const { buildDays, cutDays } = buildCutDays((ns?.phase_history as PhaseSpan[] | undefined) ?? [], today);
   const rate = ns ? Math.abs(Number(ns.target_rate_pct)) : 0;
 
   return (
@@ -51,7 +49,10 @@ export default async function NutritionPage() {
           {nt && (
             <section className="bg-card overflow-hidden rounded-2xl border">
               <div className="knurl border-b px-5 py-4">
-                <p className="stamp text-muted-foreground">Daily target · from {prettyDate(nt.effective_from)}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="stamp text-muted-foreground">Daily target · from {prettyDate(nt.effective_from)}</p>
+                  <RecalculateButton />
+                </div>
                 <p className="font-display num mt-1 text-6xl leading-none font-extrabold">
                   {fmtNum(nt.kcal)} <span className="text-muted-foreground text-2xl">kcal</span>
                 </p>
@@ -71,7 +72,12 @@ export default async function NutritionPage() {
                 <span>
                   Sports included: <span className="text-foreground num font-semibold">~{nt.sport_kcal_per_day}/day</span>
                 </span>
-                <Why ruleIds={['N-MAC-01', 'N-PRO-01', 'N-FAT-01', 'N-CHO-01', 'N-SPT-03']} />
+                {nt.bodyweight_kg != null && !hide && (
+                  <span>
+                    Based on: <span className="text-foreground num font-semibold">{toDisplay(Number(nt.bodyweight_kg), units)} {units}</span> (7-day average)
+                  </span>
+                )}
+                <Why ruleIds={['N-MAC-01', 'N-PRO-01', 'N-FAT-01', 'N-CHO-01', 'N-SPT-01', 'N-SPT-03']} />
               </div>
             </section>
           )}

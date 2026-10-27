@@ -82,7 +82,8 @@ export const RULE_LIST: RuleDef[] = [
   r('T-STR-02', 'MSP-T', '238–240', 'Volume phase: 1–3 top singles per lift per week getting harder (RPE 5 → 8), then normal working sets; 10–20 weekly sets for the supporting muscles.'),
   r('T-STR-03', 'MSP-T', '238–240', 'Load phase: 2–4 singles per lift per week (RPE 6 → 9), each followed by 2 back-off sets of 5 → 3 reps; supporting volume drops to 5–10 sets.'),
   r('T-STR-04', 'MSP-T', '238–240', 'Peak phase (only before a test): heavy singles up to RPE 10, few back-off sets and very little extra volume for 2–4 weeks.'),
-  r('T-STR-05', 'MSP-T', '238–240', 'Train each main lift 2–4 times a week; a session that works the same muscles with another lift counts as half an exposure.'),
+  r('T-EST-01', 'GEN', undefined, 'Estimated 1-rep max (e1RM) uses a Brzycki-style formula on effective reps (reps + RIR): load × 36 ÷ (37 − effective reps). Sets above 12 effective reps are too far from a max to estimate, so they are left out.'),
+  r('T-STR-05', 'MSP-T', '238–240','Train each main lift 2–4 times a week; a session that works the same muscles with another lift counts as half an exposure.'),
   // Fatigue
   r('T-FAT-01', 'MSP-T', '106, 242', 'Each week answer five quick recovery questions. Two or more “yes” answers means a deload next week.'),
   r('T-FAT-02', 'MSP-T', '104–105', 'Deloads happen when you need them, not on a fixed calendar.'),
