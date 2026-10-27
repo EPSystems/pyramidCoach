@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { ChevronRight, Moon, Sparkles, Trophy } from 'lucide-react';
 import { requireOnboarded } from '@/lib/server/context';
-import { activeBlock, blockWeekIndex, readiness, sessionsBetween, weekRange } from '@/lib/server/queries';
+import { blockWeekIndex, readiness, weekRange } from '@/lib/server/queries';
 import { Button } from '@/components/ui/button';
 import { PageHeader, PyramidMeter, Why } from '@/components/app/bits';
 import { CheckinCard } from '@/components/app/checkin-card';
@@ -12,24 +12,35 @@ import { kindLabel, lighterSessionFor } from '@/lib/engine/fatigue';
 import { prettyDate, weekdayLong } from '@/lib/utils/dates';
 import { cn } from '@/lib/utils';
 import type { MuscleId } from '@/lib/engine/types';
+import { createLogger } from '@/lib/log';
 import { DrainedButton, LogSportDialog, MoveSessionDialog, StartSessionButton } from './actions-ui';
 
 export const metadata: Metadata = { title: 'Today' };
+
+const log = createLogger('today/page');
+
+// Only the columns this page renders: the shared helpers select `*`, and blocks.* carries large JSON
+// (inputs snapshot, schedule, selections, explanations) that Today never shows.
+const BLOCK_COLS = 'kind, starts_on, weeks, intro_week';
+const SESSION_COLS =
+  'id, title, kind, status, scheduled_on, est_minutes, template_key, order_in_week, planned_exercises(id, position, sets, rep_min, rep_max, rir_min, rir_max, is_main_lift_single, label, exercises(name))';
 
 export default async function TodayPage() {
   const ctx = await requireOnboarded();
   const { supabase, user, today } = ctx;
   const week = weekRange(today);
-  const [block, { data: checkin }, { data: yesterday }, sessions, { data: proposals }, upcoming, { data: basics }] = await Promise.all([
-    activeBlock(supabase, user.id),
+  const [{ data: block }, { data: checkin }, { data: yesterday }, sessionsRes, { data: proposals }, upcoming, { data: basics }] = await Promise.all([
+    supabase.from('blocks').select(BLOCK_COLS).eq('user_id', user.id).eq('status', 'active').maybeSingle(),
     supabase.from('checkins').select('*').eq('user_id', user.id).eq('day', today).maybeSingle(),
     supabase.from('checkins').select('sleep_hours').eq('user_id', user.id).lt('day', today).not('sleep_hours', 'is', null).order('day', { ascending: false }).limit(1).maybeSingle(),
-    sessionsBetween(supabase, user.id, week.start, addDays(week.end, 7)),
+    supabase.from('planned_sessions').select(SESSION_COLS).eq('user_id', user.id).gte('scheduled_on', week.start).lt('scheduled_on', addDays(week.end, 7)).order('scheduled_on').order('order_in_week'),
     supabase.from('proposals').select('id,title').eq('user_id', user.id).eq('status', 'pending').order('created_at'),
     supabase.from('planned_sessions').select('id,title,scheduled_on').eq('user_id', user.id).gt('scheduled_on', today).eq('status', 'planned').order('scheduled_on').limit(1),
     // Accepted "fix the basics" plateau proposals stay on Today as a checklist for 7 days (T-PRG-06).
     supabase.from('proposals').select('id,title,payload').eq('user_id', user.id).eq('kind', 'plateau_action').eq('status', 'accepted').gte('decided_at', addDays(today, -7)),
   ]);
+  log.db('select planned_sessions', sessionsRes, { userId: user.id });
+  const sessions = (sessionsRes.data ?? []).map((s) => ({ ...s, planned_exercises: [...s.planned_exercises].sort((a, b) => a.position - b.position) }));
   const todays = sessions.filter((s) => s.scheduled_on === today && s.status !== 'skipped');
   const missed = sessions.filter((s) => s.scheduled_on < today && s.scheduled_on >= week.start && s.status === 'planned');
   const sportsToday = ctx.sports.filter((s) => s.weekdays.includes(isoWeekday(today)));
@@ -106,7 +117,7 @@ export default async function TodayPage() {
                     <li key={e.id} className="flex items-baseline justify-between gap-3 px-5 py-2.5">
                       <span className="min-w-0 truncate font-medium">{e.exercises?.name}</span>
                       <span className="num text-muted-foreground shrink-0 text-sm">
-                        {e.is_main_lift_single ? (e.note ?? 'Top single') : formatRx({ sets: e.sets, repMin: e.rep_min, repMax: e.rep_max, rirMin: Number(e.rir_min), rirMax: Number(e.rir_max) })}
+                        {e.is_main_lift_single ? (e.label ?? 'Top single') : formatRx({ sets: e.sets, repMin: e.rep_min, repMax: e.rep_max, rirMin: Number(e.rir_min), rirMax: Number(e.rir_max) })}
                       </span>
                     </li>
                   ))}

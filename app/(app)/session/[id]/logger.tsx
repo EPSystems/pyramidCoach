@@ -16,6 +16,7 @@ import { Why } from '@/components/app/bits';
 import { formatRx, showRirHint } from '@/lib/engine/prescription';
 import { e1rm } from '@/lib/engine/e1rm';
 import { nudgeLoad } from '@/lib/engine/progression';
+import { canAddSet, MAX_SETS_PER_EXERCISE, restoreRest, restStorageKey, sessionMuscleSets, weekTotals, type RestState } from '@/lib/engine/session';
 import type { ExerciseMuscle, MuscleId } from '@/lib/engine/types';
 import { MUSCLE_SHORT } from '@/lib/knowledge/muscles';
 import { fmtLoad, fromDisplay, toDisplay, type Units } from '@/lib/utils/units';
@@ -35,6 +36,9 @@ export interface LoggerExercise {
   rx: { repMin: number; repMax: number; rirMin: number; rirMax: number };
   restSeconds: number;
   isSingle: boolean;
+  /** Engine label ("Top single @ RPE 6", "Back-off sets @ RPE 7"). Read-only. */
+  label: string | null;
+  /** The user's own note. */
   note: string | null;
   skipped: boolean;
   ruleIds: string[];
@@ -43,6 +47,8 @@ export interface LoggerExercise {
   last: { date: string; sets: { load: number | null; reps: number }[] } | null;
   bestE1rm: number | null;
   warmup: { load: number; reps: number }[];
+  /** Warm-up set indexes already logged this session. */
+  warmupLogged: number[];
   logged: { setIndex: number; load: number | null; reps: number; rir: number | null }[];
   subs: { id: string; name: string }[];
 }
@@ -72,20 +78,69 @@ function initRows(ex: LoggerExercise): Row[] {
   return rows;
 }
 
-function useRestTimer() {
-  const [rest, setRest] = useState<{ start: number; target: number; name: string } | null>(null);
+// The running timer is mirrored to localStorage per session (its start timestamp, not a countdown), so a reload or a
+// killed tab resumes it with the right elapsed time. Storage can be missing or blocked: then it's just in memory.
+function saveRest(sessionId: string, rest: RestState | null) {
+  try {
+    if (rest) localStorage.setItem(restStorageKey(sessionId), JSON.stringify(rest));
+    else localStorage.removeItem(restStorageKey(sessionId));
+  } catch {
+    // Private mode or blocked storage: the timer still works for this page view.
+  }
+}
+
+function useRestTimer(sessionId: string) {
+  const [rest, setRest] = useState<RestState | null>(null);
   const [now, setNow] = useState(0);
+  useEffect(() => {
+    let raw: string | null = null;
+    try {
+      raw = localStorage.getItem(restStorageKey(sessionId));
+    } catch {
+      return;
+    }
+    const restored = restoreRest(raw, Date.now());
+    if (!restored) return void saveRest(sessionId, null);
+    // Restored after mount (not during render) so server and client markup match.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNow(Date.now());
+    setRest(restored);
+  }, [sessionId]);
   useEffect(() => {
     if (!rest) return;
     const t = setInterval(() => setNow(Date.now()), 500);
     return () => clearInterval(t);
   }, [rest]);
-  return { rest, elapsed: rest ? Math.max(0, Math.floor((now - rest.start) / 1000)) : 0, start: (target: number, name: string) => { setNow(Date.now()); setRest({ start: Date.now(), target, name }); }, stop: () => setRest(null) };
+  return {
+    rest,
+    elapsed: rest ? Math.max(0, Math.floor((now - rest.start) / 1000)) : 0,
+    start: (target: number, name: string) => {
+      const r = { start: Date.now(), target, name };
+      setNow(r.start);
+      setRest(r);
+      saveRest(sessionId, r);
+    },
+    stop: () => {
+      setRest(null);
+      saveRest(sessionId, null);
+    },
+  };
 }
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
-export function Logger({ session, exercises, units }: { session: { id: string; title: string; status: string; date: string; kind: string; estMinutes: number | null }; exercises: LoggerExercise[]; units: Units }) {
-  const timer = useRestTimer();
+export function Logger({
+  session,
+  exercises,
+  weekBefore,
+  units,
+}: {
+  session: { id: string; title: string; status: string; date: string; kind: string; estMinutes: number | null };
+  exercises: LoggerExercise[];
+  /** Counted sets per muscle logged earlier this week in other sessions. */
+  weekBefore: Partial<Record<MuscleId, number>>;
+  units: Units;
+}) {
+  const timer = useRestTimer(session.id);
   const [rows, setRows] = useState<Record<string, Row[]>>(() => Object.fromEntries(exercises.map((e) => [e.plannedId + e.exerciseId, initRows(e)])));
   const [finishing, setFinishing] = useState(false);
   const router = useRouter();
@@ -153,7 +208,7 @@ export function Logger({ session, exercises, units }: { session: { id: string; t
         </button>
       )}
 
-      <FinishDialog open={finishing} onOpenChange={setFinishing} session={session} exercises={exercises} rows={rows} units={units} />
+      <FinishDialog open={finishing} onOpenChange={setFinishing} session={session} exercises={exercises} rows={rows} weekBefore={weekBefore} units={units} onFinished={timer.stop} />
     </div>
   );
 }
@@ -178,6 +233,7 @@ function ExerciseCard({
   const [skipped, setSkipped] = useState(ex.skipped);
   const [swapOpen, setSwapOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
+  const [note, setNote] = useState(ex.note);
   const [, start] = useTransition();
   const firstLogged = rows[0]?.logged;
   const allDone = rows.length > 0 && rows.every((r) => r.logged);
@@ -257,11 +313,12 @@ function ExerciseCard({
             {ex.name}
           </Link>
           <p className="num text-muted-foreground mt-0.5 text-sm">
-            {ex.isSingle ? (ex.note ?? 'Top single') : formatRx({ sets: rows.length, ...ex.rx })} · rest {mmss(ex.restSeconds)}
+            {ex.isSingle ? (ex.label ?? 'Top single') : formatRx({ sets: rows.length, ...ex.rx })} · rest {mmss(ex.restSeconds)}
           </p>
           <p className="num text-muted-foreground text-sm">
             {ex.last ? `Last: ${fmtLoad(ex.last.sets[0]?.load, units)} × ${ex.last.sets.map((s) => s.reps).join(', ')}` : ex.suggestion.hint ?? 'First time: pick a weight you can control.'}
           </p>
+          {ex.last && ex.suggestion.hint && <p className="text-warn mt-0.5 text-xs">{ex.suggestion.hint}</p>}
         </div>
         <Why ruleIds={ex.ruleIds} className="mt-1" />
         <DropdownMenu>
@@ -273,6 +330,7 @@ function ExerciseCard({
               <Repeat2 /> Swap exercise
             </DropdownMenuItem>
             <DropdownMenuItem
+              disabled={!canAddSet(rows.length)}
               onSelect={() =>
                 start(async () => {
                   const added = rows.length;
@@ -290,7 +348,7 @@ function ExerciseCard({
                 })
               }
             >
-              <Plus /> Add set
+              <Plus /> {canAddSet(rows.length) ? 'Add set' : `Max ${MAX_SETS_PER_EXERCISE} sets`}
             </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={() =>
@@ -317,24 +375,10 @@ function ExerciseCard({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      {ex.note && !ex.isSingle && <p className="text-muted-foreground px-4 pt-1 text-xs italic">{ex.note}</p>}
+      {ex.label && !ex.isSingle && <p className="stamp text-muted-foreground px-4 pt-1">{ex.label}</p>}
+      {note && <p className="text-muted-foreground px-4 pt-1 text-xs italic">{note}</p>}
 
-      {ex.warmup.length > 0 && (
-        <details className="group mx-4 mt-3 rounded-lg border border-dashed px-3 py-2 text-sm">
-          <summary className="flex cursor-pointer list-none items-center gap-2 font-medium">
-            <Flame className="text-warn size-4" /> Warm-up ramp <ChevronDown className="ml-auto size-4 transition-transform group-open:rotate-180" />
-          </summary>
-          <p className="text-muted-foreground mt-1 text-xs">General warm-up first, then:</p>
-          <ul className="num mt-1 space-y-0.5">
-            {ex.warmup.map((w, i) => (
-              <li key={i}>
-                {fmtLoad(w.load, units)} × {w.reps}
-              </li>
-            ))}
-          </ul>
-          <Why ruleIds={['T-WUP-01']} className="mt-2" />
-        </details>
-      )}
+      {ex.warmup.length > 0 && <WarmupRamp ex={ex} sessionId={sessionId} units={units} disabled={skipped} />}
 
       {/* Rendered even before a load exists so entering the first weight doesn't shift the rows under the user's thumb. */}
       {!firstLogged && !skipped && !ex.isSingle && (
@@ -406,7 +450,7 @@ function ExerciseCard({
       {showRirHint(ex.rx.repMax) && <p className="text-muted-foreground px-4 py-2 text-xs">Most people have ~1 more rep than they think. <Why ruleIds={['T-RIR-01']} /></p>}
 
       <SwapDialog open={swapOpen} onOpenChange={setSwapOpen} ex={ex} onDone={onChanged} />
-      <NoteDialog open={noteOpen} onOpenChange={setNoteOpen} ex={ex} />
+      <NoteDialog open={noteOpen} onOpenChange={setNoteOpen} plannedId={ex.plannedId} note={note} onSaved={setNote} />
     </section>
   );
 }
@@ -462,7 +506,10 @@ function SwapDialog({ open, onOpenChange, ex, onDone }: { open: boolean; onOpenC
             disabled={!pick || pending}
             onClick={() =>
               start(async () => {
-                const r = await swapExercise(ex.plannedId, pick!, block ? 'block' : 'session');
+                const r = await swapExercise(ex.plannedId, pick!, block ? 'block' : 'session').catch((e: unknown) => {
+                  log.error('swapExercise threw', { plannedExerciseId: ex.plannedId, err: e });
+                  return { ok: false as const, error: 'Could not swap the exercise. Check your connection and try again.' };
+                });
                 if (!r.ok) toast.error(r.error);
                 else {
                   toast.success(block ? 'Swapped for the rest of the block' : 'Swapped for this session');
@@ -480,8 +527,9 @@ function SwapDialog({ open, onOpenChange, ex, onDone }: { open: boolean; onOpenC
   );
 }
 
-function NoteDialog({ open, onOpenChange, ex }: { open: boolean; onOpenChange: (o: boolean) => void; ex: LoggerExercise }) {
-  const [note, setNote] = useState(ex.isSingle ? '' : (ex.note ?? ''));
+function NoteDialog({ open, onOpenChange, plannedId, note: saved, onSaved }: { open: boolean; onOpenChange: (o: boolean) => void; plannedId: string; note: string | null; onSaved: (note: string | null) => void }) {
+  // Only the user's own note is edited here; engine labels (top single, back-off) live in their own column.
+  const [note, setNote] = useState(saved ?? '');
   const [saving, setSaving] = useState(false);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -495,14 +543,15 @@ function NoteDialog({ open, onOpenChange, ex }: { open: boolean; onOpenChange: (
             disabled={saving}
             onClick={async () => {
               setSaving(true);
-              const res = await saveExerciseNote(ex.plannedId, note).catch((e: unknown) => {
-                log.error('saveExerciseNote threw', { plannedExerciseId: ex.plannedId, err: e });
+              const res = await saveExerciseNote(plannedId, note).catch((e: unknown) => {
+                log.error('saveExerciseNote threw', { plannedExerciseId: plannedId, err: e });
                 return { ok: false as const, error: 'Could not save the note. Check your connection and try again.' };
               });
               setSaving(false);
               // Keep the dialog open on failure so the typed note isn't lost.
               if (!res.ok) return void toast.error(res.error);
               toast.success('Note saved');
+              onSaved(note.slice(0, 300) || null);
               onOpenChange(false);
             }}
           >
@@ -514,39 +563,121 @@ function NoteDialog({ open, onOpenChange, ex }: { open: boolean; onOpenChange: (
   );
 }
 
+function WarmupRamp({ ex, sessionId, units, disabled }: { ex: LoggerExercise; sessionId: string; units: Units; disabled: boolean }) {
+  // Warm-ups are logged with is_warmup = true (their own set_index sequence) and never count toward volume, e1RM or PRs.
+  const [done, setDone] = useState<ReadonlySet<number>>(() => new Set(ex.warmupLogged));
+  const inFlight = useRef(new Set<number>());
+  const [saving, setSaving] = useState<ReadonlySet<number>>(new Set());
+  const mark = (i: number, on: boolean) =>
+    setDone((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(i);
+      else next.delete(i);
+      return next;
+    });
+  const markSaving = (i: number, on: boolean) => {
+    if (on) inFlight.current.add(i);
+    else inFlight.current.delete(i);
+    setSaving(new Set(inFlight.current));
+  };
+
+  async function toggle(i: number) {
+    if (inFlight.current.has(i)) return;
+    markSaving(i, true);
+    const w = ex.warmup[i];
+    const wasDone = done.has(i);
+    mark(i, !wasDone);
+    const res = await (wasDone
+      ? deleteSet(ex.plannedId, i, true)
+      : logSet({ sessionId, plannedExerciseId: ex.plannedId, exerciseId: ex.exerciseId, setIndex: i, loadKg: w.load, reps: w.reps, rir: null, rx: ex.rx, increment: ex.increment, isWarmup: true })
+    ).catch((e: unknown) => {
+      log.error('warm-up set threw', { plannedExerciseId: ex.plannedId, setIndex: i, err: e });
+      return { ok: false as const, error: 'Could not save the warm-up set. Check your connection and try again.' };
+    });
+    markSaving(i, false);
+    if (!res.ok) {
+      log.warn('warm-up set failed', { plannedExerciseId: ex.plannedId, setIndex: i, error: res.error });
+      mark(i, wasDone);
+      toast.error(res.error);
+    }
+  }
+
+  return (
+    <details className="group mx-4 mt-3 rounded-lg border border-dashed px-3 py-2 text-sm">
+      <summary className="flex cursor-pointer list-none items-center gap-2 font-medium">
+        <Flame className="text-warn size-4" /> Warm-up ramp
+        <span className="num text-muted-foreground text-xs">
+          {done.size}/{ex.warmup.length}
+        </span>
+        <ChevronDown className="ml-auto size-4 transition-transform group-open:rotate-180" />
+      </summary>
+      <p className="text-muted-foreground mt-1 text-xs">General warm-up first, then tick each ramp set. Warm-ups don&apos;t count toward your weekly sets.</p>
+      <ul className="num mt-1 space-y-1">
+        {ex.warmup.map((w, i) => (
+          <li key={i} className="flex items-center gap-3">
+            <span className="flex-1">
+              {fmtLoad(w.load, units)} × {w.reps}
+            </span>
+            <button
+              type="button"
+              onClick={() => void toggle(i)}
+              disabled={disabled || saving.has(i)}
+              aria-busy={saving.has(i)}
+              aria-pressed={done.has(i)}
+              aria-label={done.has(i) ? `Undo warm-up set ${i + 1}` : `Log warm-up set ${i + 1}`}
+              className={cn('grid size-11 shrink-0 place-items-center rounded-lg border-2 transition-all', done.has(i) ? 'bg-warn border-warn text-background' : 'border-warn/60 text-warn hover:bg-warn/10')}
+            >
+              <Check className="size-5" strokeWidth={3} />
+            </button>
+          </li>
+        ))}
+      </ul>
+      <Why ruleIds={['T-WUP-01']} className="mt-2" />
+    </details>
+  );
+}
+
+type Tag = 'sore' | 'pain';
+/** Finish-screen chip cycle: none → sore → pain → none. */
+const nextTag = (t: Tag | undefined): Tag | undefined => (t == null ? 'sore' : t === 'sore' ? 'pain' : undefined);
+
 function FinishDialog({
   open,
   onOpenChange,
   session,
   exercises,
   rows,
+  weekBefore,
   units,
+  onFinished,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   session: { id: string };
   exercises: LoggerExercise[];
   rows: Record<string, Row[]>;
+  weekBefore: Partial<Record<MuscleId, number>>;
   units: Units;
+  onFinished: () => void;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [sore, setSore] = useState<Partial<Record<MuscleId, 'sore'>>>({});
+  const [tags, setTags] = useState<Partial<Record<MuscleId, Tag>>>({});
+  const [tagError, setTagError] = useState<string | null>(null);
   const summary = useMemo(() => {
     let done = 0;
     let planned = 0;
-    const muscles: Partial<Record<MuscleId, number>> = {};
     const prs: { name: string; e1rm: number; load: number | null; reps: number }[] = [];
+    const items: { muscles: ExerciseMuscle[]; sets: Row[] }[] = [];
     for (const ex of exercises) {
       const rs = rows[ex.plannedId + ex.exerciseId] ?? [];
       if (!ex.skipped) planned += rs.length;
+      const logged = rs.filter((x) => x.logged);
+      done += logged.length;
+      items.push({ muscles: ex.muscles, sets: logged });
       let best = 0;
       let bestRow: Row | null = null;
-      for (const r of rs.filter((x) => x.logged)) {
-        done++;
-        if (r.reps >= 4 && (r.rir == null || r.rir <= 4)) {
-          for (const m of ex.muscles) muscles[m.muscle] = (muscles[m.muscle] ?? 0) + (m.role === 'primary' ? 1 : 0.5);
-        }
+      for (const r of logged) {
         const v = e1rm(r.load, r.reps, r.rir) ?? 0;
         if (v > best) {
           best = v;
@@ -555,9 +686,35 @@ function FinishDialog({
       }
       if (bestRow && ex.bestE1rm != null && best > ex.bestE1rm + 0.05) prs.push({ name: ex.name, e1rm: best, load: bestRow.load, reps: bestRow.reps });
     }
-    return { done, planned, muscles, prs };
-  }, [exercises, rows]);
-  const trained = Object.keys(summary.muscles) as MuscleId[];
+    return { done, planned, prs, totals: weekTotals(weekBefore, sessionMuscleSets(items)) };
+  }, [exercises, rows, weekBefore]);
+  const r1 = (x: number) => Math.round(x * 10) / 10;
+
+  const finish = (withTags: boolean) =>
+    start(async () => {
+      setTagError(null);
+      if (withTags && Object.keys(tags).length) {
+        const s = await addSoreness(tags).catch((e: unknown) => {
+          log.error('addSoreness threw', { sessionId: session.id, err: e });
+          return { ok: false as const, error: 'Check your connection and try again.' };
+        });
+        if (!s.ok) {
+          // Don't drop the tags silently: they feed tomorrow's readiness and the weekly review. The user chooses.
+          log.warn('addSoreness failed', { sessionId: session.id, error: s.error });
+          setTagError(`Soreness tags weren't saved: ${s.error}`);
+          return;
+        }
+      }
+      const r = await finishSession(session.id).catch((e: unknown) => {
+        log.error('finishSession threw', { sessionId: session.id, err: e });
+        return { ok: false as const, error: 'Could not finish the session. Check your connection and try again.' };
+      });
+      if (!r.ok) return void toast.error(r.error);
+      onFinished();
+      toast.success('Session saved. Nice work.');
+      router.push('/today');
+    });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto">
@@ -577,49 +734,62 @@ function FinishDialog({
           </div>
         )}
         <div>
-          <p className="stamp text-muted-foreground mb-1">Sets added this week <Why ruleIds={['T-VOL-05', 'T-VOL-06']} /></p>
+          <p className="stamp text-muted-foreground mb-1">
+            Sets this week <Why ruleIds={['T-VOL-05', 'T-VOL-06']} />
+          </p>
           <div className="num grid grid-cols-2 gap-x-4 text-sm">
-            {trained.map((m) => (
-              <p key={m} className="flex justify-between">
-                <span>{MUSCLE_SHORT[m]}</span>
-                <span className="font-semibold">+{summary.muscles[m]}</span>
+            {summary.totals.map((t) => (
+              <p key={t.muscle} className="flex justify-between gap-2">
+                <span>{MUSCLE_SHORT[t.muscle]}</span>
+                <span>
+                  <span className="font-semibold">{r1(t.week)}</span> <span className="text-muted-foreground text-xs">(+{r1(t.session)} today)</span>
+                </span>
               </p>
             ))}
-            {!trained.length && <p className="text-muted-foreground">No counted sets yet.</p>}
+            {!summary.totals.length && <p className="text-muted-foreground">No counted sets yet.</p>}
           </div>
         </div>
-        {trained.length > 0 && (
+        {summary.totals.length > 0 && (
           <div>
-            <p className="text-sm font-medium">Anything sore now?</p>
+            <p className="text-sm font-medium">Anything sore or painful now?</p>
+            <p className="text-muted-foreground text-xs">Tap once for sore, twice for pain, again to clear.</p>
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {trained.map((m) => (
-                <button key={m} type="button" aria-pressed={!!sore[m]} onClick={() => setSore((s) => (s[m] ? Object.fromEntries(Object.entries(s).filter(([k]) => k !== m)) : { ...s, [m]: 'sore' }))} className={cn('h-9 rounded-full px-3 text-sm', sore[m] ? 'bg-warn/20 text-warn' : 'bg-muted')}>
+              {summary.totals.map(({ muscle: m }) => (
+                <button
+                  key={m}
+                  type="button"
+                  aria-pressed={!!tags[m]}
+                  aria-label={`${MUSCLE_SHORT[m]}: ${tags[m] ?? 'fine'}`}
+                  onClick={() =>
+                    setTags((s) => {
+                      const t = nextTag(s[m]);
+                      const rest = Object.fromEntries(Object.entries(s).filter(([k]) => k !== m)) as Partial<Record<MuscleId, Tag>>;
+                      return t ? { ...rest, [m]: t } : rest;
+                    })
+                  }
+                  className={cn('h-9 rounded-full px-3 text-sm', tags[m] === 'sore' ? 'bg-warn/20 text-warn' : tags[m] === 'pain' ? 'bg-danger/20 text-danger' : 'bg-muted')}
+                >
                   {MUSCLE_SHORT[m]}
+                  {tags[m] && <span className="ml-1 text-xs opacity-80">· {tags[m]}</span>}
                 </button>
               ))}
             </div>
           </div>
         )}
-        <DialogFooter>
-          <Button
-            size="lg"
-            className="w-full"
-            disabled={pending}
-            onClick={() =>
-              start(async () => {
-                if (Object.keys(sore).length) {
-                  const s = await addSoreness(sore);
-                  if (!s.ok) log.warn('addSoreness failed, finishing anyway', { sessionId: session.id, error: s.error });
-                }
-                const r = await finishSession(session.id);
-                if (!r.ok) return void toast.error(r.error);
-                toast.success('Session saved. Nice work.');
-                router.push('/today');
-              })
-            }
-          >
-            Finish session
+        {tagError && (
+          <p role="alert" className="text-danger text-sm">
+            {tagError}
+          </p>
+        )}
+        <DialogFooter className="flex-col gap-2 sm:flex-col">
+          <Button size="lg" className="w-full" disabled={pending} onClick={() => finish(true)}>
+            {tagError ? 'Try again' : 'Finish session'}
           </Button>
+          {tagError && (
+            <Button size="lg" variant="outline" className="w-full" disabled={pending} onClick={() => finish(false)}>
+              Finish without tags
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
