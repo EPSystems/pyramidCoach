@@ -62,7 +62,10 @@ export default async function BodyPage() {
         return v ? [{ day: c.day, level: v as 'sore' | 'pain' }] : [];
       }),
       exercises: plannedEx.sort((a, b) => b.weight - a.weight),
-      injured: ctx.injuries.some((i) => i.muscleId === m),
+      // Resolved injuries are history, not active: only active/rehab entries mark the map (T-SEL-08).
+      injuries: ctx.injuryRows
+        .filter((r) => r.status !== 'resolved' && r.muscle_id === m)
+        .map((r) => ({ label: r.label, severity: r.severity, status: r.status, note: r.rehab_note })),
       specialised: (ctx.settings.specialization_muscles as string[]).includes(m),
     };
   }

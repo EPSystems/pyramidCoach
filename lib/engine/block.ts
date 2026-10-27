@@ -6,7 +6,7 @@ import { formatRx, isCompound, prescribe, rangeLevel, restFor } from './prescrip
 import { suggestNextSession } from './progression';
 import { placeSessions } from './schedule';
 import { createLogger } from '@/lib/log';
-import { painfulMuscles, selectForSlot, selectMainLift, type SelectionContext } from './selection';
+import { injuryNote, painfulMuscles, selectForSlot, selectMainLift, type SelectionContext } from './selection';
 import { chooseSplit, sessionVariant, TEMPLATES, type SplitDef } from './split';
 import { hardSportSessionsPerWeek } from './sports';
 import { backoffLoad, backoffReps, backoffSets, blockWeeks, defaultBlockKind, isStrengthKind, singleLoad, singleRpe } from './strength';
@@ -412,9 +412,11 @@ function materialiseSession(
       heavyLowerBarbell: w.ex.category === 'lower_free_compound' && w.ex.equipment.includes('barbell'),
     };
     const sug = suggestNextSession(hist, rx);
+    const note = injuryNote(w.ex, input.injuries);
+    if (note) ruleIds.push('T-SEL-08');
     return {
       exerciseId: w.ex.id, slotKey: w.slotKey, position, sets, repMin: rx.repMin, repMax: rx.repMax, rirMin, rirMax,
-      restSeconds: rx.restSeconds, note: null, suggestedLoadKg: sug.load, ruleIds: [...ruleIds, ...sug.ruleIds],
+      restSeconds: rx.restSeconds, note, suggestedLoadKg: sug.load, ruleIds: [...ruleIds, ...sug.ruleIds],
     };
   });
   const est = estimateMinutes({ ...s, exercises: s.exercises.map((w, i) => ({ ...w, sets: exercises[i].sets })) });

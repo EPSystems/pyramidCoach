@@ -1,7 +1,8 @@
-// Plateau detection and flowchart (Section 6.12.5). Rules: T-PRG-06, T-VOL-07, T-FAT-01.
+// Plateau detection and flowchart (Section 6.12.5). Rules: T-PRG-06, T-VOL-07, T-FAT-01, T-SEL-06.
 import { PLATEAU_WINDOW, VOLUME } from '@/lib/knowledge/constants';
 import { e1rm } from './e1rm';
-import type { ExerciseDef, Goal, LoggedSet, MuscleId, NutritionPhase, Proposal, Status, TrackedMuscle } from './types';
+import { substitutionsFor } from './selection';
+import type { Equipment, ExerciseDef, Goal, Injury, LoggedSet, MuscleId, NutritionPhase, Proposal, Status, TrackedMuscle } from './types';
 import { TRACKED_MUSCLES } from './types';
 import { addDays } from './util';
 
@@ -18,7 +19,10 @@ export interface ProgressState {
   lastReviewYesCount: number | null;
   /** Exposures per week of each exercise in the current plan. */
   weeklyFrequency: Record<string, number>;
+  /** The current block week's targets (not week 0). */
   targets: Partial<Record<TrackedMuscle, number>>;
+  /** Optional: lets a stall that can't take more volume propose a variation swap (T-SEL-06). */
+  selection?: { equipment: Equipment[]; injuries: Injury[]; disliked: string[] };
 }
 
 /** Anchor metric per exposure: best e1RM for main lifts, first-set e1RM for everything else. */
@@ -95,7 +99,20 @@ export function detectPlateaus(state: ProgressState): Proposal[] {
       .filter((m) => m.role === 'primary' && (TRACKED_MUSCLES as readonly string[]).includes(m.muscle))
       .map((m) => m.muscle as TrackedMuscle)
       .filter((m) => (state.targets[m] ?? 0) + VOLUME.plateauAddSets <= VOLUME.normalCap);
-    if (!muscles.length) continue;
+    if (!muscles.length) {
+      // Step 4: volume is already at the cap, so change the stimulus instead: swap in a close variation (T-SEL-06).
+      const to = state.selection ? substitutionsFor(ex, { exercises: state.exercises, ...state.selection }).find((e) => state.goal !== 'strength' || !ex.isMainLift || e.mainLiftKey === ex.mainLiftKey) : undefined;
+      if (!to) continue;
+      proposals.push({
+        kind: 'exercise_swap',
+        title: `${ex.name} has stalled: switch to ${to.name}`,
+        rationale: `Sleep, nutrition and recovery look good and the muscles it trains are already at ${VOLUME.normalCap} weekly sets, so more volume isn't the answer. A close variation gives a fresh stimulus; keep it for the rest of the block so progress stays measurable. ${questions}`,
+        ruleIds: ['T-PRG-06', 'T-SEL-06', 'T-VOL-02'],
+        payload: { plannedExerciseIds: [], fromExerciseId: id, toExerciseId: to.id, reason: 'plateau' },
+        expiresOn: expires,
+      });
+      continue;
+    }
     proposals.push({
       kind: 'plateau_action',
       title: `${ex.name} has stalled: add 2 sets/week for ${muscles.join(', ')}`,

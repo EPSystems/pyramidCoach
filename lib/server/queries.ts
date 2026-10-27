@@ -60,7 +60,7 @@ export function readiness(c: { sleep_hours: number | null; energy: number | null
   if ((c.energy ?? 3) >= 3) score++;
   if ((c.stress ?? 3) <= 3) score++;
   if (!sore.includes('pain')) score++;
-  if (score === 4) return { label: 'Ready', tone: 'ok' as const };
-  if (score >= 2) return { label: 'Steady: autoregulate', tone: 'warn' as const };
-  return { label: 'Take it easy', tone: 'danger' as const };
+  if (score === 4) return { label: 'Ready', tone: 'ok' as const, score };
+  if (score >= 2) return { label: 'Steady: autoregulate', tone: 'warn' as const, score };
+  return { label: 'Take it easy', tone: 'danger' as const, score };
 }

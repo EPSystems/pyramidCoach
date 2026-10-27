@@ -8,7 +8,7 @@ import { PageHeader, PyramidMeter, Why } from '@/components/app/bits';
 import { CheckinCard } from '@/components/app/checkin-card';
 import { formatRx } from '@/lib/engine/prescription';
 import { addDays, isoWeekday } from '@/lib/engine/util';
-import { kindLabel } from '@/lib/engine/fatigue';
+import { kindLabel, lighterSessionFor } from '@/lib/engine/fatigue';
 import { prettyDate, weekdayLong } from '@/lib/utils/dates';
 import { cn } from '@/lib/utils';
 import type { MuscleId } from '@/lib/engine/types';
@@ -20,13 +20,15 @@ export default async function TodayPage() {
   const ctx = await requireOnboarded();
   const { supabase, user, today } = ctx;
   const week = weekRange(today);
-  const [block, { data: checkin }, { data: yesterday }, sessions, { data: proposals }, upcoming] = await Promise.all([
+  const [block, { data: checkin }, { data: yesterday }, sessions, { data: proposals }, upcoming, { data: basics }] = await Promise.all([
     activeBlock(supabase, user.id),
     supabase.from('checkins').select('*').eq('user_id', user.id).eq('day', today).maybeSingle(),
     supabase.from('checkins').select('sleep_hours').eq('user_id', user.id).lt('day', today).not('sleep_hours', 'is', null).order('day', { ascending: false }).limit(1).maybeSingle(),
     sessionsBetween(supabase, user.id, week.start, addDays(week.end, 7)),
     supabase.from('proposals').select('id,title').eq('user_id', user.id).eq('status', 'pending').order('created_at'),
     supabase.from('planned_sessions').select('id,title,scheduled_on').eq('user_id', user.id).gt('scheduled_on', today).eq('status', 'planned').order('scheduled_on').limit(1),
+    // Accepted "fix the basics" plateau proposals stay on Today as a checklist for 7 days (T-PRG-06).
+    supabase.from('proposals').select('id,title,payload').eq('user_id', user.id).eq('kind', 'plateau_action').eq('status', 'accepted').gte('decided_at', addDays(today, -7)),
   ]);
   const todays = sessions.filter((s) => s.scheduled_on === today && s.status !== 'skipped');
   const missed = sessions.filter((s) => s.scheduled_on < today && s.scheduled_on >= week.start && s.status === 'planned');
@@ -37,6 +39,15 @@ export default async function TodayPage() {
   const checkinDone = !!checkin && (checkin.sleep_hours != null || checkin.energy != null);
   const moveDates = Array.from({ length: 6 }, (_, i) => addDays(today, i + 1));
   const nextUp = upcoming.data?.[0];
+  const basicsChecks = (basics ?? []).filter((p) => (p.payload as { step?: string }).step === 'fix_basics');
+  // Low readiness → prompt the T-FAT-08 swap (a suggestion; nothing changes until the user taps it).
+  const totalSets = (s: (typeof sessions)[number]) => s.planned_exercises.reduce((a, e) => a + e.sets, 0);
+  const lighter = lighterSessionFor(
+    ready?.score ?? null,
+    todays[0] ? { id: todays[0].id, status: todays[0].status, totalSets: totalSets(todays[0]) } : null,
+    sessions.map((s) => ({ id: s.id, title: s.title, date: s.scheduled_on, status: s.status, totalSets: totalSets(s) })),
+    today,
+  );
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -154,8 +165,33 @@ export default async function TodayPage() {
             </section>
           ))}
 
+          {lighter && todays[0] && (
+            <section className="border-warn/40 bg-warn/5 rounded-2xl border p-4">
+              <p className="text-sm">
+                Your check-in says take it easy. <span className="font-semibold">{lighter.title}</span> ({prettyDate(lighter.date)}) is lighter than today&apos;s session: swap them? <Why ruleIds={['T-FAT-08']} />
+              </p>
+              <div className="mt-3">
+                <DrainedButton sessionId={todays[0].id} />
+              </div>
+            </section>
+          )}
+
+          {basicsChecks.map((p) => (
+            <section key={p.id} className="bg-card rounded-2xl border p-4">
+              <p className="stamp text-muted-foreground">Basics checklist · {p.title.split(':')[0]}</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+                {(p.payload as { details?: string }).details?.split('; ').map((d) => <li key={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</li>)}
+                <li>Protein at least 1.6 g/kg most days</li>
+                <li>Honest RIR ratings, same range of motion and tempo each session</li>
+              </ul>
+              <p className="text-muted-foreground mt-2 text-xs">
+                Accepted from your weekly review. <Why ruleIds={['T-PRG-06']} />
+              </p>
+            </section>
+          ))}
+
           <div className="grid gap-2 sm:grid-cols-2">
-            {todays[0] && todays[0].status === 'planned' && <DrainedButton sessionId={todays[0].id} />}
+            {todays[0] && todays[0].status === 'planned' && !lighter && <DrainedButton sessionId={todays[0].id} />}
             {todays[0] && todays[0].status === 'planned' && <MoveSessionDialog sessionId={todays[0].id} title={todays[0].title} dates={moveDates} />}
             <Button asChild variant="outline" className="justify-start">
               <Link href="/generate">

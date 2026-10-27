@@ -377,14 +377,14 @@ isOneToOne: false
                   ]
                 },"weekly_reviews": {
                   Row: {
-                    "aches_worse": boolean | null,"autofilled": NonNullable<Json>,"completed_at": string | null,"dreading_gym": boolean | null,"performance_down": boolean | null,"sleep_worse": boolean | null,"stress_worse": boolean | null,"user_id": string,"week_start": string,"yes_count": number | null
+                    "aches_worse": boolean | null,"autofilled": NonNullable<Json>,"completed_at": string | null,"dreading_gym": boolean | null,"inferred_status": string | null,"performance_down": boolean | null,"sleep_worse": boolean | null,"stress_worse": boolean | null,"user_id": string,"week_start": string,"yes_count": number | null
                   }
                   ComputedFields: never
                   Insert: {
-                    "aches_worse"?: boolean | null,"autofilled"?: NonNullable<Json>,"completed_at"?: string | null,"dreading_gym"?: boolean | null,"performance_down"?: boolean | null,"sleep_worse"?: boolean | null,"stress_worse"?: boolean | null,"user_id": string,"week_start": string,"yes_count"?: never
+                    "aches_worse"?: boolean | null,"autofilled"?: NonNullable<Json>,"completed_at"?: string | null,"dreading_gym"?: boolean | null,"inferred_status"?: string | null,"performance_down"?: boolean | null,"sleep_worse"?: boolean | null,"stress_worse"?: boolean | null,"user_id": string,"week_start": string,"yes_count"?: never
                   }
                   Update: {
-                    "aches_worse"?: boolean | null,"autofilled"?: NonNullable<Json>,"completed_at"?: string | null,"dreading_gym"?: boolean | null,"performance_down"?: boolean | null,"sleep_worse"?: boolean | null,"stress_worse"?: boolean | null,"user_id"?: string,"week_start"?: string,"yes_count"?: never
+                    "aches_worse"?: boolean | null,"autofilled"?: NonNullable<Json>,"completed_at"?: string | null,"dreading_gym"?: boolean | null,"inferred_status"?: string | null,"performance_down"?: boolean | null,"sleep_worse"?: boolean | null,"stress_worse"?: boolean | null,"user_id"?: string,"week_start"?: string,"yes_count"?: never
                   }
                   Relationships: [
                     

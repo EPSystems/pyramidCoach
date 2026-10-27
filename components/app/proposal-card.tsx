@@ -17,7 +17,7 @@ export interface ProposalView {
   rationale: string;
   rule_ids: string[];
   status: string;
-  preview: { date: string; rows: { name: string; before: number; after: number; swapTo?: string }[] }[] | null;
+  preview: { date: string; rows: { name: string; before: number; after: number; swapTo?: string; reps?: string }[] }[] | null;
   payload: Record<string, unknown>;
   expires_on: string | null;
 }
@@ -82,6 +82,10 @@ export function ProposalCard({ p }: { p: ProposalView }) {
                           <span className="shrink-0">
                             {r.swapTo ? (
                               <>→ {r.swapTo}</>
+                            ) : r.reps ? (
+                              <>
+                                {r.before} sets → <span className="text-volt">{r.reps}</span>
+                              </>
                             ) : (
                               <>
                                 {r.before} → <span className={r.after === 0 ? 'text-danger' : 'text-volt'}>{r.after === 0 ? 'removed' : `${r.after} sets`}</span>

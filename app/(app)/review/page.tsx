@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { requireOnboarded, loadExercises } from '@/lib/server/context';
-import { buildWeeklyState } from '@/lib/server/review';
+import { buildWeeklyState, nutritionReviewFor } from '@/lib/server/review';
 import { autofillReview, reviewWeekFor } from '@/lib/engine/fatigue';
 import { loggedMuscleSets } from '@/lib/engine/counting';
 import { addDays, isoWeekday } from '@/lib/engine/util';
@@ -25,6 +25,11 @@ export default async function ReviewPage() {
     loadExercises(supabase),
   ]);
   const autofill = autofillReview(state);
+  // Nutrition notes (e.g. "trend on target") are informational; a failed read only hides them.
+  const nutritionNotes = await nutritionReviewFor(supabase, user.id, today, state.status).then(
+    (r) => r.notes,
+    () => [] as string[],
+  );
   const pending = (proposals ?? []).filter((p) => p.status === 'pending');
   const decided = (proposals ?? []).filter((p) => p.status !== 'pending').slice(0, 6);
 
@@ -98,6 +103,20 @@ export default async function ReviewPage() {
               ))}
             </div>
           </section>
+
+          {nutritionNotes.length > 0 && (
+            <section className="bg-card rounded-2xl border p-5">
+              <div className="flex items-baseline justify-between">
+                <h2 className="font-display text-2xl font-bold uppercase">Nutrition check</h2>
+                <Why ruleIds={['N-WGT-02', 'N-ADJ-02']} />
+              </div>
+              <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-5 text-sm">
+                {nutritionNotes.map((n) => (
+                  <li key={n}>{n}</li>
+                ))}
+              </ul>
+            </section>
+          )}
         </div>
 
         <div className="space-y-4">

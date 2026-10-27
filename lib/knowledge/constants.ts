@@ -84,6 +84,33 @@ export const DELOAD = { setCutDefault: 0.4, setCutRange: [0.3, 0.5] as const, ye
 export const TARGETED_DELOAD = { reduceSetsPct: 0.5 }; // APP from T-FAT-04
 export const INTRO_WEEK = { setPct: 0.75, rirBump: 1, volumeJumpTrigger: 0.2, weeksOffTrigger: 2 }; // T-FAT-06
 
+// T-FAT-05: a week of higher reps on the exercises that load an aching area. APP: concrete ranges per category,
+// above each category's normal range (T-INT-03) but inside the 4–30 rep hypertrophy range (T-INT-01).
+export const HIGHER_REP_WEEK: Record<'lower_free_compound' | 'lower_machine_compound' | 'upper_free_press' | 'upper_machine_press' | 'pulling_compound' | 'isolation', readonly [number, number]> = {
+  lower_free_compound: [10, 15],
+  lower_machine_compound: [12, 20],
+  upper_free_press: [12, 15],
+  upper_machine_press: [12, 20],
+  pulling_compound: [12, 20],
+  isolation: [15, 25],
+};
+
+// APP from T-RIR-01 / T-FAT-01: logged RIR below the prescribed floor at a similar load, on consecutive exposures.
+export const RIR_DRIFT = {
+  minBelowFloor: 1, // a set counts as "harder than planned" when RIR ≤ rirMin − 1 (people already underestimate by ~1, T-RIR-01)
+  similarLoadPct: 0.025, // load within +2.5% of the previous exposure counts as "the same load"
+  consecutiveExposures: 2,
+  exercises: 2, // like REVIEW.perfDropExercises
+};
+
+// APP heuristics for the weekly review's plan proposals (T-VOL-02/07, T-FAT-03, T-SEL-08).
+export const REVIEW_PLAN = {
+  volumeCutSets: 2, // repeated recovery flags → −2 weekly sets on muscles at ≥ volumeCutMinTarget
+  volumeCutMinTarget: 10, // T-VOL-02 practical floor: only trim muscles at or above it
+  painDaysForInjury: 2, // pain tags on ≥ 2 days in the last 14 → treat as a recurring injury (T-SEL-08)
+  painLookbackDays: 14,
+};
+
 export const PLATEAU_WINDOW = {
   novice: { exposures: 3 },
   intermediate: { weeks: 4 },
@@ -171,6 +198,8 @@ export const REVIEW = {
   perfDropExercises: 2,
   e1rmDropPct: 0.03,
   proposalExpiryDays: 7,
+  /** APP from T-FAT-08 / DECISIONS #29: readiness score at or below this suggests the lightest session. */
+  lowReadinessScore: 1,
 };
 
 export const STATUS_INFERENCE = {

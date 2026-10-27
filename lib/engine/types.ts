@@ -156,6 +156,8 @@ export interface LoggedSet {
   rir: number | null;
   isWarmup: boolean;
   sessionId?: string | null;
+  /** Prescribed RIR floor of the planned exercise this set was logged against (RIR drift, T-RIR-01). */
+  plannedRirMin?: number | null;
 }
 
 export interface PreviousBlockSummary {
@@ -366,7 +368,8 @@ export interface PlannedSessionState {
   date: string;
   status: 'planned' | 'in_progress' | 'done' | 'skipped' | 'moved';
   templateKey: string;
-  exercises: { id: string; exerciseId: string; sets: number; rirMin: number; rirMax: number }[];
+  kind?: PlannedSession['kind'];
+  exercises: { id: string; exerciseId: string; sets: number; rirMin: number; rirMax: number; repMin?: number; repMax?: number }[];
 }
 
 export interface WeeklyState {
@@ -384,6 +387,16 @@ export interface WeeklyState {
   statusHistory?: Status[]; // previous inferences (latest last)
   goal: Goal;
   nutritionPhase?: NutritionPhase;
+  /** Inputs for plan proposals (injury_adjust, volume_change, exercise_swap, plan_regenerate, intro_week). All optional. */
+  injuries?: Injury[];
+  /** This week's weekly targets per tracked muscle. */
+  targets?: Partial<Record<TrackedMuscle, number>>;
+  specialization?: TrackedMuscle[];
+  /** Yes-count of the review of the week before the reviewed one (null = none). */
+  previousYesCount?: number | null;
+  dislikedExerciseIds?: string[];
+  equipment?: Equipment[];
+  availableDays?: number[];
 }
 
 export interface StatusInference extends RuleTagged {

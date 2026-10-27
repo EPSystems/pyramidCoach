@@ -31,6 +31,17 @@ export function isPrimary(ex: ExerciseDef, m: MuscleId): boolean {
   return ex.muscles.some((x) => x.muscle === m && x.role === 'primary');
 }
 
+/**
+ * T-SEL-08 beyond selection: a cue on exercises that mainly train an area in rehab (lighter loads, higher reps, short of
+ * pain) or with a logged niggle (keep it pain-free). Rehab wins over niggle; resolved injuries add nothing.
+ */
+export function injuryNote(ex: ExerciseDef, injuries: Injury[]): string | null {
+  const hit = injuries.filter((i) => i.status !== 'resolved' && i.muscleId && isPrimary(ex, i.muscleId));
+  if (hit.some((i) => i.status === 'rehab')) return 'Rehab area: lighter load and higher reps (12–20), stop well short of pain';
+  if (hit.some((i) => i.severity === 'niggle')) return 'Niggle here: keep every rep pain-free; swap or skip it if it hurts';
+  return null;
+}
+
 export function hasEquipment(ex: ExerciseDef, equipment: Equipment[]): boolean {
   return ex.equipment.some((e) => equipment.includes(e));
 }

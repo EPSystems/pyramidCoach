@@ -1,7 +1,8 @@
 // Public engine API (Section 6.0). Pure, deterministic functions only.
 export { generateBlock, exposuresFor, incrementFor } from './block';
 export { suggestNextSet, suggestNextSession, nudgeLoad } from './progression';
-export { weeklyReview, autofillReview, reviewWeekFor, localSoreMuscles } from './fatigue';
+export { weeklyReview, autofillReview, reviewWeekFor, localSoreMuscles, rirDrift, lighterSessionFor, statusAnchorIds } from './fatigue';
+export { planReview } from './plan-review';
 export { detectPlateaus } from './plateau';
 export { generateSession, EQUIPMENT_PRESETS } from './generator';
 export { applyProposal, validateProposal, PAYLOAD_SCHEMAS, deloadDiff } from './proposals';

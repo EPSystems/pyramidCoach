@@ -1,24 +1,29 @@
 import 'server-only';
 import type { Supa } from '@/lib/supabase/server';
 import { weeklyReview } from '@/lib/engine/fatigue';
+import { planReview } from '@/lib/engine/plan-review';
 import { detectPlateaus } from '@/lib/engine/plateau';
 import { nutritionReview } from '@/lib/engine/nutrition-review';
 import { addDays, mean } from '@/lib/engine/util';
-import type { BlockKind, CheckinDay, Goal, MuscleId, NutritionPhase, Proposal, ReviewKey, Status, TrackedMuscle, WeeklyState } from '@/lib/engine/types';
-import { loadExercises, mapSet } from './context';
+import type { BlockKind, CheckinDay, Equipment, Goal, MuscleId, NutritionPhase, Proposal, ReviewKey, Status, TrackedMuscle, WeeklyState } from '@/lib/engine/types';
+import { loadExercises, mapInjury, mapSet } from './context';
 import { loadStoredPlan } from './proposals';
 import { createLogger } from '@/lib/log';
 
 const log = createLogger('server/review');
 
 export async function buildWeeklyState(supabase: Supa, userId: string, today: string, weekStart: string, overrides?: Partial<Record<ReviewKey, boolean>>) {
-  const [settingsRes, checkinsRes, setsRes, exercises, blockRes, nsRes] = await Promise.all([
+  const [settingsRes, checkinsRes, setsRes, exercises, blockRes, nsRes, injuriesRes, reviewsRes] = await Promise.all([
     supabase.from('user_settings').select('*').eq('user_id', userId).single(),
     supabase.from('checkins').select('*').eq('user_id', userId).gte('day', addDays(weekStart, -35)).lt('day', addDays(weekStart, 7)),
-    supabase.from('logged_sets').select('*').eq('user_id', userId).gte('performed_on', addDays(weekStart, -42)),
+    // The planned RIR floor rides along for the RIR-drift signal (T-RIR-01).
+    supabase.from('logged_sets').select('*, planned_exercises(rir_min)').eq('user_id', userId).gte('performed_on', addDays(weekStart, -42)),
     loadExercises(supabase),
     supabase.from('blocks').select('*').eq('user_id', userId).eq('status', 'active').maybeSingle(),
     supabase.from('nutrition_settings').select('phase').eq('user_id', userId).maybeSingle(),
+    supabase.from('injuries').select('*').eq('user_id', userId),
+    // Earlier reviews, one row per week: status inferences (T-STA-03) and last week's yes-count (volume_change).
+    supabase.from('weekly_reviews').select('week_start, yes_count, inferred_status, completed_at').eq('user_id', userId).lt('week_start', weekStart).order('week_start', { ascending: false }).limit(6),
   ]);
   // Failed reads fall back to defaults below (intermediate / lean_gain / no sets), which skews every weekly proposal.
   // They're listed in `failedReads` so callers that write (runWeeklyEngines) can refuse; the review page can still render.
@@ -27,7 +32,23 @@ export async function buildWeeklyState(supabase: Supa, userId: string, today: st
   const { data: setRows, error: setsErr } = log.db('select logged_sets', setsRes, { userId });
   const { data: block, error: blockErr } = log.db('select active block', blockRes, { userId });
   const { data: ns, error: nsErr } = log.db('select nutrition_settings.phase', nsRes, { userId });
-  const failedReads = Object.entries({ user_settings: settingsErr, checkins: checkinsErr, logged_sets: setsErr, blocks: blockErr, nutrition_settings: nsErr })
+  const { data: injuryRows, error: injuriesErr } = log.db('select injuries', injuriesRes, { userId });
+  const { data: reviews, error: reviewsErr } = log.db('select previous weekly_reviews', reviewsRes, { userId });
+  // Targets of the reviewed week's block week (not week 0), clamped into the block.
+  const weekIdx = block ? Math.min(Math.max(0, Math.floor((Date.parse(weekStart) - Date.parse(block.starts_on)) / 604800000)), block.weeks - 1) : 0;
+  const { data: targetRows, error: targetsErr } = block
+    ? log.db('select weekly_targets', await supabase.from('weekly_targets').select('muscle_id, target_sets').eq('block_id', block.id).eq('week_index', weekIdx), { blockId: block.id })
+    : { data: [], error: null };
+  const failedReads = Object.entries({
+    user_settings: settingsErr,
+    checkins: checkinsErr,
+    logged_sets: setsErr,
+    blocks: blockErr,
+    nutrition_settings: nsErr,
+    injuries: injuriesErr,
+    weekly_reviews: reviewsErr,
+    weekly_targets: targetsErr,
+  })
     .filter(([, e]) => e)
     .map(([t]) => t);
   if (!settings) log.warn('no user_settings, using engine defaults', { userId });
@@ -53,15 +74,23 @@ export async function buildWeeklyState(supabase: Supa, userId: string, today: st
     ),
     sessionsThisWeek: all.filter((s) => s.date >= weekStart && s.date < nextWeek),
     nextWeekSessions: all.filter((s) => s.date >= nextWeek && s.date < addDays(nextWeek, 7)),
-    sets: (setRows ?? []).map(mapSet),
+    sets: (setRows ?? []).map((r) => ({ ...mapSet(r), plannedRirMin: r.planned_exercises?.rir_min != null ? Number(r.planned_exercises.rir_min) : null })),
     exercises,
     mainLiftExerciseIds: exercises.filter((e) => e.mainLiftKey).map((e) => e.id),
     overrides,
     block: block ? { id: block.id, kind: block.kind as BlockKind, startsOn: block.starts_on, weeks: block.weeks, testDate: settings?.test_date } : null,
     status: (settings?.training_status ?? 'intermediate') as Status,
-    statusHistory: (settings?.status_history ?? []) as Status[],
+    // One inference per reviewed week, oldest first (T-STA-03: "two reviews in a row" = two different weeks).
+    statusHistory: [...(reviews ?? [])].reverse().filter((r) => r.inferred_status).map((r) => r.inferred_status as Status),
     goal: (settings?.goal ?? 'lean_gain') as Goal,
     nutritionPhase: (ns?.phase as NutritionPhase | undefined) ?? 'maintain',
+    injuries: (injuryRows ?? []).map(mapInjury),
+    targets: Object.fromEntries((targetRows ?? []).map((x) => [x.muscle_id, Number(x.target_sets)])) as Partial<Record<TrackedMuscle, number>>,
+    specialization: (settings?.specialization_muscles ?? []) as TrackedMuscle[],
+    previousYesCount: previousYes(reviews ?? [], addDays(weekStart, -7)),
+    dislikedExerciseIds: settings?.disliked_exercise_ids ?? [],
+    equipment: settings ? (settings.equipment as Equipment[]) : undefined,
+    availableDays: settings?.available_days,
   };
   return { state, settings, exercises, block, failedReads };
 }
@@ -72,7 +101,7 @@ export async function runWeeklyEngines(supabase: Supa, userId: string, today: st
   // Proposals built from defaults would be wrong and get saved, so refuse instead.
   if (failedReads.length) throw new Error(`Could not load your data (${failedReads.join(', ')}). Please try again.`);
   const review = weeklyReview(state);
-  const proposals: Proposal[] = [...review.proposals];
+  const proposals: Proposal[] = [...review.proposals, ...planReview(state, review.yesCount)];
 
   // Plateaus (6.12.5) on anchor lifts: the first exercise of each upcoming session + main lifts.
   const anchors = new Set<string>();
@@ -80,12 +109,6 @@ export async function runWeeklyEngines(supabase: Supa, userId: string, today: st
   const sleep7 = state.checkins.filter((c) => c.day >= weekStart && c.sleepHours != null).map((c) => c.sleepHours!);
   const freq: Record<string, number> = {};
   for (const s of state.nextWeekSessions) for (const e of s.exercises) freq[e.exerciseId] = (freq[e.exerciseId] ?? 0) + 1;
-  let targets: Partial<Record<TrackedMuscle, number>> = {};
-  if (block) {
-    const { data: t, error: tErr } = log.db('select weekly_targets', await supabase.from('weekly_targets').select('muscle_id, target_sets').eq('block_id', block.id).eq('week_index', 0), { blockId: block.id });
-    if (tErr) throw new Error('Could not load your weekly targets. Please try again.');
-    targets = Object.fromEntries((t ?? []).map((x) => [x.muscle_id, Number(x.target_sets)]));
-  }
   proposals.push(
     ...detectPlateaus({
       today,
@@ -99,11 +122,24 @@ export async function runWeeklyEngines(supabase: Supa, userId: string, today: st
       nutritionPhase: state.nutritionPhase ?? 'maintain',
       lastReviewYesCount: review.yesCount,
       weeklyFrequency: freq,
-      targets,
+      // The reviewed week's targets (buildWeeklyState), not the block's first week.
+      targets: state.targets ?? {},
+      selection: state.equipment ? { equipment: state.equipment, injuries: (state.injuries ?? []).filter((i) => i.status !== 'resolved'), disliked: state.dislikedExerciseIds ?? [] } : undefined,
     }),
   );
 
-  // Nutrition (7.6).
+  const nutrition = await nutritionReviewFor(supabase, userId, today, state.status);
+  proposals.push(...nutrition.proposals);
+  return { review, proposals, nutritionNotes: nutrition.notes, settings, state, block };
+}
+
+function previousYes(reviews: { week_start: string; yes_count: number | null; completed_at: string | null }[], prevWeek: string): number | null {
+  const prev = reviews.find((r) => r.week_start === prevWeek && r.completed_at);
+  return prev ? (prev.yes_count ?? 0) : null;
+}
+
+/** Nutrition review (7.6). Also used by the review page to show its notes (e.g. "trend on target"). */
+export async function nutritionReviewFor(supabase: Supa, userId: string, today: string, status: Status): Promise<{ proposals: Proposal[]; notes: string[] }> {
   const { data: ns, error: nsErr } = log.db('select nutrition_settings', await supabase.from('nutrition_settings').select('*').eq('user_id', userId).maybeSingle(), { userId });
   const { data: nt, error: ntErr } = log.db(
     'select latest nutrition_targets',
@@ -117,7 +153,6 @@ export async function runWeeklyEngines(supabase: Supa, userId: string, today: st
   );
   // Missing weigh-ins would make the nutrition review propose calorie changes from no data.
   if (nsErr || ntErr || weighErr) throw new Error('Could not load your nutrition data. Please try again.');
-  let nutritionNotes: string[] = [];
   if (ns && nt) {
     const ins = (weighRows ?? []).map((r) => ({ day: r.day, kg: Number(r.bodyweight_kg) }));
     const nr = nutritionReview({
@@ -128,15 +163,13 @@ export async function runWeeklyEngines(supabase: Supa, userId: string, today: st
       kcal: nt.kcal,
       multiplier: Number(ns.activity_multiplier),
       bodyweightKg: ins.length ? ins[ins.length - 1].kg : 75,
-      status: state.status,
+      status,
       targetRatePct: Math.abs(Number(ns.target_rate_pct)),
       weighIns: ins,
       initialAdjustDone: ns.initial_adjust_done,
     });
-    proposals.push(...nr.proposals);
-    nutritionNotes = nr.notes;
-  } else {
-    log.debug('nutrition review skipped', { userId, hasSettings: !!ns, hasTargets: !!nt });
+    return { proposals: nr.proposals, notes: nr.notes };
   }
-  return { review, proposals, nutritionNotes, settings, state };
+  log.debug('nutrition review skipped', { userId, hasSettings: !!ns, hasTargets: !!nt });
+  return { proposals: [], notes: [] };
 }
