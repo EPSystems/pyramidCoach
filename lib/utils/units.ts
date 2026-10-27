@@ -11,3 +11,13 @@ export function fmtLoad(kg: number | null | undefined, units: Units): string {
   return `${Number.isInteger(v) ? v : v.toFixed(units === 'kg' ? (Math.round(v * 10) === v * 10 ? 1 : 2) : 1)} ${units}`;
 }
 export const fmtNum = (v: number | null | undefined, digits = 0) => (v == null ? '-' : v.toLocaleString('en-GB', { maximumFractionDigits: digits, minimumFractionDigits: 0 }));
+
+// Height is always stored in cm; lb users enter feet + inches.
+export const CM_PER_IN = 2.54;
+/** Feet + inches → cm (1 decimal, the column's precision). */
+export const cmFromFtIn = (ft: number, inches: number): number => Math.round((ft * 12 + inches) * CM_PER_IN * 10) / 10;
+/** cm → whole feet + inches rounded to the nearest inch (5' 11.6" shows as 6' 0"). */
+export function ftInFromCm(cm: number): { ft: number; in: number } {
+  const total = Math.round(cm / CM_PER_IN);
+  return { ft: Math.floor(total / 12), in: total % 12 };
+}

@@ -20,7 +20,7 @@ const r = (id: string, source: RuleSource, page: string | undefined, summary: st
 export const RULE_LIST: RuleDef[] = [
   // Training status
   r('T-STA-01', 'MSP-T', '86–87, 240', 'Training status is judged by how fast you progress, not by years or strength: novices improve almost every session, intermediates week to week, advanced lifters month to month.'),
-  r('T-STA-02', 'APP', undefined, 'If you are unsure of your status: under a year of consistent training counts as novice, otherwise intermediate. The app never auto-assigns advanced.'),
+  r('T-STA-02', 'APP', undefined, 'If you are unsure of your status: under a year of consistent training counts as novice; 5+ years with heavy lifts that barely move month to month counts as advanced; otherwise intermediate.'),
   r('T-STA-03', 'APP', undefined, 'After 8+ weeks of logs the app checks how often your anchor lifts improve and suggests a status change if your logs disagree with your setting twice in a row.'),
   r('T-STA-04', 'MSP-T', '86', 'Status can differ between body regions. The app stores one status for now.'),
   r('T-PRI-01', 'MSP-T', '18', 'When you lift and play a sport, one has to come first. If the sport comes first, lifting stays lower in volume, further from failure and avoids risky exercises and heavy soreness.'),

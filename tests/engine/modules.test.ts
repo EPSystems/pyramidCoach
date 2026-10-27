@@ -133,6 +133,12 @@ describe('status inference (T-STA-03)', () => {
     expect(inferTrainingStatus({ sets: adv.slice(0, 3).map((s) => ({ ...s, performedOn: addDays(s.performedOn, -90) })).concat(adv.slice(0, 2)), today: '2026-10-24', anchorExerciseIds: ['back-squat'] }).status).toBeNull();
     expect(statusFromYears(0.5)).toBe('novice');
     expect(statusFromYears(7)).toBe('intermediate');
+    // Advanced only with 5+ years and stalled heavy lifts.
+    expect(statusFromYears(6, true)).toBe('advanced');
+    expect(statusFromYears(5, true)).toBe('advanced');
+    expect(statusFromYears(3, true)).toBe('intermediate');
+    expect(statusFromYears(0.5, true)).toBe('novice');
+    expect(statusFromYears(6, false)).toBe('intermediate');
   });
 });
 

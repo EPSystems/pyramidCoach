@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from 'react';
 import { ArrowLeft, ArrowRight, Check, Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { completeOnboarding } from '@/lib/actions/onboarding';
-import type { OnboardingPayload } from '@/lib/schemas/onboarding';
+import { BirthYear, BodyFatPct, BodyweightKg, HeightCm, SportMinutes, fieldError, type OnboardingPayload } from '@/lib/schemas/onboarding';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,36 +15,16 @@ import { PyramidMark } from '@/components/app/logo';
 import { cn } from '@/lib/utils';
 import type { Equipment, MuscleId } from '@/lib/engine/types';
 import { MUSCLE_SHORT } from '@/lib/knowledge/muscles';
-import { fromDisplay } from '@/lib/utils/units';
+import { cmFromFtIn, fromDisplay, ftInFromCm } from '@/lib/utils/units';
+import { statusFromYears } from '@/lib/engine/status';
+import { EQUIPMENT_PRESETS as PRESETS, type EquipmentPreset as Preset, type Prefill } from '@/lib/onboarding/owner-prefill';
+import { seedsToKg, selectedCustomSports } from '@/lib/onboarding/derive';
 
 type Goal = OnboardingPayload['goal'];
 type Sport = OnboardingPayload['sports'][number];
 type Injury = OnboardingPayload['injuries'][number];
 type Custom = NonNullable<OnboardingPayload['customSports']>[number];
 
-export interface Prefill {
-  displayName?: string;
-  heightCm?: number;
-  bodyweightKg?: number;
-  bodyFatPct?: number;
-  goal?: Goal;
-  status?: 'novice' | 'intermediate' | 'advanced';
-  priority?: 'lifting' | 'balanced' | 'sport';
-  sports?: Sport[];
-  availableDays?: number[];
-  sessionMinutes?: 30 | 45 | 60 | 75 | 90 | 120;
-  maxLiftDays?: number;
-  equipmentPreset?: Preset;
-  injuries?: Injury[];
-  seeds?: OnboardingPayload['seeds'];
-}
-
-type Preset = 'full' | 'dumbbells' | 'bodyweight' | 'custom';
-const PRESETS: Record<Exclude<Preset, 'custom'>, Equipment[]> = {
-  full: ['barbell', 'dumbbell', 'machine', 'cable', 'bodyweight', 'band', 'sled'],
-  dumbbells: ['dumbbell', 'bodyweight', 'band'],
-  bodyweight: ['bodyweight', 'band'],
-};
 const ALL_EQ: Equipment[] = ['barbell', 'dumbbell', 'machine', 'cable', 'bodyweight', 'band', 'sled'];
 const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -87,29 +67,52 @@ function Card({ active, onClick, title, line }: { active: boolean; onClick: () =
   );
 }
 
-function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+function Field({ label, children, hint, error }: { label: string; children: React.ReactNode; hint?: string; error?: string | null }) {
   return (
     <div className="space-y-1.5">
       <Label className="stamp text-muted-foreground">{label}</Label>
       {children}
-      {hint && <p className="text-muted-foreground text-xs">{hint}</p>}
+      {error ? (
+        <p role="alert" className="text-danger text-xs">
+          {error}
+        </p>
+      ) : (
+        hint && <p className="text-muted-foreground text-xs">{hint}</p>
+      )}
     </div>
   );
 }
 
 const num = (v: string) => (v.trim() === '' ? null : Number(v));
+/** Inline error for an optional field: blank is fine, anything else must pass the server's schema. */
+const optError = (schema: Parameters<typeof fieldError>[0], v: string) => (v.trim() === '' ? null : fieldError(schema, Number(v)));
 
-export function OnboardingWizard({ sports, prefill, email }: { sports: { id: string; name: string; defaultMinutes: number; notes: string | null; custom: boolean }[]; prefill?: Prefill; email: string }) {
+type ExerciseOption = { slug: string; name: string; primary: MuscleId[] };
+
+export function OnboardingWizard({
+  sports,
+  prefill,
+  email,
+  exercises,
+}: {
+  sports: { id: string; name: string; defaultMinutes: number; notes: string | null; custom: boolean }[];
+  prefill?: Prefill;
+  email: string;
+  exercises: ExerciseOption[];
+}) {
   const [step, setStep] = useState(0);
   const [pending, start] = useTransition();
   const p = prefill ?? {};
 
   // 1 About
   const [name, setName] = useState(p.displayName ?? email.split('@')[0] ?? '');
-  const [sex, setSex] = useState<OnboardingPayload['sex'] | null>(null);
+  const [sex, setSex] = useState<OnboardingPayload['sex'] | null>(p.sex ?? null);
   const [birthYear, setBirthYear] = useState('');
   const [units, setUnits] = useState<'kg' | 'lb'>('kg');
   const [height, setHeight] = useState(p.heightCm ? String(p.heightCm) : '');
+  // lb users enter height in feet + inches; it is stored in cm either way.
+  const [heightFt, setHeightFt] = useState('');
+  const [heightIn, setHeightIn] = useState('');
   const [weight, setWeight] = useState(p.bodyweightKg ? String(p.bodyweightKg) : '');
   const [bf, setBf] = useState(p.bodyFatPct ? String(p.bodyFatPct) : '');
   // 2 Goal
@@ -118,6 +121,7 @@ export function OnboardingWizard({ sports, prefill, email }: { sports: { id: str
   const [status, setStatus] = useState<'novice' | 'intermediate' | 'advanced' | null>(p.status ?? null);
   const [unsure, setUnsure] = useState(false);
   const [years, setYears] = useState<number | null>(null);
+  const [stalled, setStalled] = useState<boolean | null>(null);
   const [trainedLastMonth, setTrainedLastMonth] = useState(true);
   const [seeds, setSeeds] = useState<NonNullable<OnboardingPayload['seeds']>>(p.seeds ?? {});
   // 4 Sports
@@ -137,14 +141,27 @@ export function OnboardingWizard({ sports, prefill, email }: { sports: { id: str
   const [lifestyle, setLifestyle] = useState<OnboardingPayload['lifestyle'] | null>(null);
 
   const allSports = useMemo(() => [...sports, ...customs.map((c) => ({ id: c.tempId, name: c.name, defaultMinutes: 60, notes: 'Custom sport', custom: true }))], [sports, customs]);
-  const effectiveStatus = unsure ? (years == null ? null : years < 1 ? 'novice' : 'intermediate') : status;
+  // T-STA-02: 5+ years also asks whether heavy lifts still move; only a "no" there gives advanced.
+  const effectiveStatus = unsure ? (years == null || (years >= 5 && stalled == null) ? null : statusFromYears(years, !!stalled)) : status;
   const hasSport = userSports.length > 0;
 
+  const heightCm = units === 'lb' ? (heightFt.trim() === '' && heightIn.trim() === '' ? null : cmFromFtIn(Number(heightFt) || 0, Number(heightIn) || 0)) : num(height);
+  // Same zod schemas as the server, so a value that passes here is never bounced as a toast later.
+  const errors = {
+    weight: weight.trim() === '' ? null : fieldError(BodyweightKg, fromDisplay(Number(weight), units)),
+    height: heightCm == null ? null : fieldError(HeightCm, heightCm),
+    birthYear: optError(BirthYear, birthYear),
+    bf: optError(BodyFatPct, bf),
+  };
+  if (errors.weight && units === 'lb') errors.weight = 'Bodyweight must be between 77 and 551 lb.';
+  if (errors.height && units === 'lb' && Number.isFinite(heightCm)) errors.height = "Height must be between 3' 11\" and 7' 6\".";
+  const sportErrors = Object.fromEntries(userSports.map((s) => [s.sportId, fieldError(SportMinutes, s.minutes)]));
+
   const valid = [
-    name.trim().length > 0 && !!sex && Number(weight) > 0,
+    name.trim().length > 0 && !!sex && Number(weight) > 0 && !Object.values(errors).some(Boolean),
     !!goal,
     !!effectiveStatus,
-    userSports.every((s) => s.weekdays.length > 0),
+    userSports.every((s) => s.weekdays.length > 0 && !sportErrors[s.sportId]),
     days.length >= 1,
     preset !== 'custom' || equipment.length > 0,
     !!lifestyle,
@@ -152,11 +169,32 @@ export function OnboardingWizard({ sports, prefill, email }: { sports: { id: str
 
   function toggleSport(id: string) {
     const exists = userSports.find((s) => s.sportId === id);
-    if (exists) setUserSports(userSports.filter((s) => s.sportId !== id));
+    if (exists) {
+      setUserSports(userSports.filter((s) => s.sportId !== id));
+      // A removed custom sport is gone, not just deselected (it would otherwise still be created).
+      setCustoms(customs.filter((c) => c.tempId !== id));
+    }
     else setUserSports([...userSports, { sportId: id, weekdays: [], intensity: 'hard', minutes: allSports.find((s) => s.id === id)?.defaultMinutes ?? 60 }]);
   }
   function patchSport(id: string, patch: Partial<Sport>) {
     setUserSports(userSports.map((s) => (s.sportId === id ? { ...s, ...patch } : s)));
+  }
+
+  function patchInjury(idx: number, patch: Partial<Injury>) {
+    setInjuries(injuries.map((x, i) => (i === idx ? { ...x, ...patch } : x)));
+  }
+
+  /** Height changes shape between cm and ft/in, so carry the value across instead of clearing it. */
+  function changeUnits(next: 'kg' | 'lb') {
+    if (next === units) return;
+    if (heightCm != null && Number.isFinite(heightCm)) {
+      if (next === 'lb') {
+        const fi = ftInFromCm(heightCm);
+        setHeightFt(String(fi.ft));
+        setHeightIn(String(fi.in));
+      } else setHeight(String(Math.round(heightCm)));
+    }
+    setUnits(next);
   }
 
   function finish() {
@@ -165,7 +203,7 @@ export function OnboardingWizard({ sports, prefill, email }: { sports: { id: str
       displayName: name.trim(),
       sex: sex!,
       birthYear: num(birthYear),
-      heightCm: num(height),
+      heightCm,
       bodyweightKg: wKg,
       bodyFatPct: num(bf),
       units,
@@ -174,7 +212,7 @@ export function OnboardingWizard({ sports, prefill, email }: { sports: { id: str
       status: effectiveStatus!,
       trainedLastMonth,
       sports: userSports,
-      customSports: customs,
+      customSports: selectedCustomSports(customs, userSports),
       priority: goal === 'sport_support' ? 'sport' : priority,
       availableDays: days,
       sessionMinutes: minutes,
@@ -182,7 +220,8 @@ export function OnboardingWizard({ sports, prefill, email }: { sports: { id: str
       equipment: preset === 'custom' ? equipment : PRESETS[preset],
       injuries,
       lifestyle: lifestyle!,
-      seeds: Object.fromEntries(Object.entries(seeds).filter(([, v]) => v && v.load > 0 && v.reps > 0)),
+      // Entered in the chosen unit; the server stores kg.
+      seeds: seedsToKg(seeds, units),
     };
     start(async () => {
       const res = await completeOnboarding(payload);
@@ -216,20 +255,29 @@ export function OnboardingWizard({ sports, prefill, email }: { sports: { id: str
               <Segmented label="Sex" value={sex} onChange={setSex} options={[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }]} />
             </Field>
             <Field label="Units">
-              <Segmented label="Units" value={units} onChange={setUnits} options={[{ value: 'kg', label: 'kg' }, { value: 'lb', label: 'lb' }]} />
+              <Segmented label="Units" value={units} onChange={changeUnits} options={[{ value: 'kg', label: 'kg' }, { value: 'lb', label: 'lb' }]} />
             </Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label={`Bodyweight (${units})`}>
-                <Input inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} className="num h-12 text-base" placeholder="72" />
+              <Field label={`Bodyweight (${units})`} error={errors.weight}>
+                <Input inputMode="decimal" aria-invalid={!!errors.weight} value={weight} onChange={(e) => setWeight(e.target.value)} className="num h-12 text-base" placeholder="72" />
               </Field>
-              <Field label="Height (cm)">
-                <Input inputMode="decimal" value={height} onChange={(e) => setHeight(e.target.value)} className="num h-12 text-base" placeholder="175" />
+              {units === 'kg' ? (
+                <Field label="Height (cm)" error={errors.height}>
+                  <Input inputMode="decimal" aria-invalid={!!errors.height} value={height} onChange={(e) => setHeight(e.target.value)} className="num h-12 text-base" placeholder="175" />
+                </Field>
+              ) : (
+                <Field label="Height (ft, in)" error={errors.height}>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <Input inputMode="numeric" aria-label="Height feet" aria-invalid={!!errors.height} value={heightFt} onChange={(e) => setHeightFt(e.target.value)} className="num h-12 text-base" placeholder="5 ft" />
+                    <Input inputMode="decimal" aria-label="Height inches" aria-invalid={!!errors.height} value={heightIn} onChange={(e) => setHeightIn(e.target.value)} className="num h-12 text-base" placeholder="9 in" />
+                  </div>
+                </Field>
+              )}
+              <Field label="Birth year" error={errors.birthYear}>
+                <Input inputMode="numeric" aria-invalid={!!errors.birthYear} value={birthYear} onChange={(e) => setBirthYear(e.target.value)} className="num h-12 text-base" placeholder="1995" />
               </Field>
-              <Field label="Birth year">
-                <Input inputMode="numeric" value={birthYear} onChange={(e) => setBirthYear(e.target.value)} className="num h-12 text-base" placeholder="1995" />
-              </Field>
-              <Field label="Body fat % (optional)">
-                <Input inputMode="decimal" value={bf} onChange={(e) => setBf(e.target.value)} className="num h-12 text-base" placeholder="skip" />
+              <Field label="Body fat % (optional)" error={errors.bf}>
+                <Input inputMode="decimal" aria-invalid={!!errors.bf} value={bf} onChange={(e) => setBf(e.target.value)} className="num h-12 text-base" placeholder="skip" />
               </Field>
             </div>
             <p className="text-muted-foreground text-xs">This app gives general training and nutrition guidance. It is not a substitute for a doctor or physiotherapist.</p>
@@ -259,6 +307,11 @@ export function OnboardingWizard({ sports, prefill, email }: { sports: { id: str
             {unsure && (
               <Field label="How long have you trained consistently?">
                 <Segmented label="Years trained" value={years} onChange={setYears} options={[{ value: 0.5, label: '< 1 yr' }, { value: 3, label: '1–5 yrs' }, { value: 6, label: '5+ yrs' }]} />
+              </Field>
+            )}
+            {unsure && years != null && years >= 5 && (
+              <Field label="Do your heavy lifts still go up month to month?" hint="If they barely move over several months, you train like an advanced lifter.">
+                <Segmented label="Heavy lifts still progress" value={stalled == null ? null : stalled ? 'n' : 'y'} onChange={(v) => setStalled(v === 'n')} options={[{ value: 'y', label: 'Yes' }, { value: 'n', label: 'Barely' }]} />
               </Field>
             )}
             <Field label="Trained regularly in the last month?" hint="After time off your first week is an easier intro week.">
@@ -321,8 +374,8 @@ export function OnboardingWizard({ sports, prefill, email }: { sports: { id: str
                     <Segmented label="Intensity" value={us.intensity} onChange={(v) => patchSport(us.sportId, { intensity: v })} options={[{ value: 'light', label: 'Light' }, { value: 'moderate', label: 'Moderate' }, { value: 'hard', label: 'Hard' }, { value: 'match', label: 'Match' }]} />
                   </Field>
                   <div className="grid grid-cols-2 gap-3">
-                    <Field label="Minutes">
-                      <Input inputMode="numeric" value={us.minutes} onChange={(e) => patchSport(us.sportId, { minutes: Number(e.target.value) || 0 })} className="num h-11" />
+                    <Field label="Minutes" error={sportErrors[us.sportId]}>
+                      <Input inputMode="numeric" aria-invalid={!!sportErrors[us.sportId]} value={us.minutes || ''} onChange={(e) => patchSport(us.sportId, { minutes: Number(e.target.value) || 0 })} className="num h-11" />
                     </Field>
                     <Field label="Time of day">
                       <Segmented label="Time of day" value={us.timeOfDay ?? null} onChange={(v) => patchSport(us.sportId, { timeOfDay: v })} options={[{ value: 'morning', label: 'AM' }, { value: 'midday', label: 'Mid' }, { value: 'evening', label: 'PM' }]} />
@@ -416,7 +469,14 @@ export function OnboardingWizard({ sports, prefill, email }: { sports: { id: str
                     <X className="size-4" />
                   </button>
                 </div>
-                <Textarea placeholder="Optional note (e.g. your physio’s protocol)" value={inj.note ?? ''} onChange={(e) => setInjuries(injuries.map((x, i) => (i === idx ? { ...x, note: e.target.value } : x)))} />
+                <Segmented
+                  label={`${inj.label} status`}
+                  value={inj.status ?? 'active'}
+                  onChange={(v) => patchInjury(idx, { status: v })}
+                  options={[{ value: 'active' as const, label: 'Hurting now' }, { value: 'rehab' as const, label: 'In rehab' }]}
+                />
+                <Textarea placeholder="Optional note (e.g. your physio’s protocol)" value={inj.note ?? ''} onChange={(e) => patchInjury(idx, { note: e.target.value })} />
+                <AvoidPicker muscle={inj.muscleId} exercises={exercises} value={inj.avoidSlugs ?? []} onChange={(avoidSlugs) => patchInjury(idx, { avoidSlugs })} />
                 {inj.severity !== 'niggle' && <p className="text-muted-foreground text-xs">Heavy spinal and impact exercises for this area are removed automatically. If pain is persistent or reproducible, see a physio. <Why ruleIds={['T-SEL-08']} /></p>}
               </div>
             ))}
@@ -507,6 +567,41 @@ function CustomSportButton({ onAdd }: { onAdd: (c: Custom) => void }) {
           Add sport
         </Button>
       </div>
+    </div>
+  );
+}
+
+/** Exercises to skip for an injury: suggestions that train the injured area first, plus a search over the whole catalog. */
+function AvoidPicker({ muscle, exercises, value, onChange }: { muscle: MuscleId; exercises: ExerciseOption[]; value: string[]; onChange: (slugs: string[]) => void }) {
+  const [q, setQ] = useState('');
+  const bySlug = useMemo(() => new Map(exercises.map((e) => [e.slug, e])), [exercises]);
+  const query = q.trim().toLowerCase();
+  const options = (query ? exercises.filter((e) => e.name.toLowerCase().includes(query)) : exercises.filter((e) => e.primary.includes(muscle)))
+    .filter((e) => !value.includes(e.slug))
+    .slice(0, 8);
+  return (
+    <div className="space-y-2">
+      <p className="text-sm">Exercises to avoid (optional)</p>
+      {value.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {value.map((slug) => (
+            <Chip key={slug} className="h-9 px-3" active onClick={() => onChange(value.filter((x) => x !== slug))}>
+              {bySlug.get(slug)?.name ?? slug} <X className="size-3.5" aria-hidden />
+            </Chip>
+          ))}
+        </div>
+      )}
+      <Input aria-label="Search exercises to avoid" placeholder="Search exercises" value={q} onChange={(e) => setQ(e.target.value)} className="h-11" />
+      {options.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {options.map((e) => (
+            <Chip key={e.slug} className="h-9 px-3" active={false} onClick={() => onChange([...value, e.slug])}>
+              <Plus className="size-3.5" aria-hidden /> {e.name}
+            </Chip>
+          ))}
+        </div>
+      )}
+      {!query && options.length > 0 && <p className="text-muted-foreground text-xs">Suggestions train this area. Search to pick any other exercise.</p>}
     </div>
   );
 }
