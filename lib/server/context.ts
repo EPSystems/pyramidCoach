@@ -146,6 +146,8 @@ export const getUserContext = cache(async () => {
     today: todayIn(tz),
     units: (profile?.units ?? 'kg') as Units,
     isOwner: profile?.role === 'owner',
+    // Owner-appointed admins open /admin too; role changes and removing users stay owner-only (DECISIONS 37).
+    isAdmin: profile?.role === 'owner' || profile?.role === 'admin',
   };
 });
 

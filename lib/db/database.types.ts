@@ -267,14 +267,14 @@ isOneToOne: false
                   ]
                 },"profiles": {
                   Row: {
-                    "birth_year": number | null,"body_fat_pct": number | null,"bodyweight_kg": number | null,"created_at": string | null,"display_name": string | null,"email": string | null,"height_cm": number | null,"hide_bodyweight": boolean,"last_active_at": string | null,"onboarded_at": string | null,"role": string,"sex": string | null,"timezone": string,"units": string,"user_id": string
+                    "birth_year": number | null,"body_fat_pct": number | null,"bodyweight_kg": number | null,"created_at": string | null,"display_name": string | null,"email": string | null,"height_cm": number | null,"hide_bodyweight": boolean,"last_active_at": string | null,"onboarded_at": string | null,"role": string,"sex": string | null,"theme": string | null,"timezone": string,"units": string,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "birth_year"?: number | null,"body_fat_pct"?: number | null,"bodyweight_kg"?: number | null,"created_at"?: string | null,"display_name"?: string | null,"email"?: string | null,"height_cm"?: number | null,"hide_bodyweight"?: boolean,"last_active_at"?: string | null,"onboarded_at"?: string | null,"role"?: string,"sex"?: string | null,"timezone"?: string,"units"?: string,"user_id": string
+                    "birth_year"?: number | null,"body_fat_pct"?: number | null,"bodyweight_kg"?: number | null,"created_at"?: string | null,"display_name"?: string | null,"email"?: string | null,"height_cm"?: number | null,"hide_bodyweight"?: boolean,"last_active_at"?: string | null,"onboarded_at"?: string | null,"role"?: string,"sex"?: string | null,"theme"?: string | null,"timezone"?: string,"units"?: string,"user_id": string
                   }
                   Update: {
-                    "birth_year"?: number | null,"body_fat_pct"?: number | null,"bodyweight_kg"?: number | null,"created_at"?: string | null,"display_name"?: string | null,"email"?: string | null,"height_cm"?: number | null,"hide_bodyweight"?: boolean,"last_active_at"?: string | null,"onboarded_at"?: string | null,"role"?: string,"sex"?: string | null,"timezone"?: string,"units"?: string,"user_id"?: string
+                    "birth_year"?: number | null,"body_fat_pct"?: number | null,"bodyweight_kg"?: number | null,"created_at"?: string | null,"display_name"?: string | null,"email"?: string | null,"height_cm"?: number | null,"hide_bodyweight"?: boolean,"last_active_at"?: string | null,"onboarded_at"?: string | null,"role"?: string,"sex"?: string | null,"theme"?: string | null,"timezone"?: string,"units"?: string,"user_id"?: string
                   }
                   Relationships: [
                     
@@ -443,14 +443,28 @@ isOneToOne: false
 "admin_remove_user":
 { Args: { "p_email": string }; Returns: undefined
                            },
+"admin_set_role":
+{ Args: { "p_role": string,"p_user_id": string }; Returns: undefined
+                           },
+"auth_user_fk_report":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "column_name": string,"on_delete": string,"table_name": string
+            }[]
+                           },
 "delete_my_account":
 { Args: Record<PropertyKey, never>; Returns: undefined
+                           },
+"is_admin":
+{ Args: Record<PropertyKey, never>; Returns: boolean
                            },
 "is_owner":
 { Args: Record<PropertyKey, never>; Returns: boolean
                            },
 "my_role":
 { Args: Record<PropertyKey, never>; Returns: string
+                           },
+"purge_unconfirmed_users":
+{ Args: { "p_older_than"?: string }; Returns: number
                            },
 "replace_future_plan":
 { Args: { "p_block": Json,"p_from": string,"p_sessions": Json,"p_targets": Json }; Returns: string

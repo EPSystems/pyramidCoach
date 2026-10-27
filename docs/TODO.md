@@ -43,7 +43,7 @@ Supabase's built-in mailer only sends to project team members and is heavily rat
 - [ ] **Offline support**: add a service worker so the app opens and set logging queues without signal (gyms have bad reception)
 - [ ] Error monitoring (Sentry or Vercel logs/alerts)
 - [ ] Backups: review Supabase plan backup retention once real data exists
-- [ ] Privacy policy page (stores weight/body-fat data from EU users)
+- [x] Privacy policy page (stores weight/body-fat data from EU users): `/privacy` and `/terms`
 - [x] Account deletion: `delete_my_account()` exists and is wired to Settings — verify it in production
 - [x] Run the e2e suite against a production build (`pnpm test:e2e` now builds and serves on :3100 against the local stack)
 
