@@ -86,6 +86,7 @@ export function mapSet(r: Tables<'logged_sets'>): LoggedSet {
     rir: r.rir,
     isWarmup: r.is_warmup,
     sessionId: r.session_id,
+    loggedAt: r.created_at,
   };
 }
 

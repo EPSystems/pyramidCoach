@@ -31,10 +31,15 @@ const log = createLogger('engine/block');
 import { computeTargets, targetsMap, weeklyTargetFor } from './volume';
 import { addDays, isoWeekday, median, mondayOf, roundHalfUp } from './util';
 
-export function incrementFor(ex: Pick<ExerciseDef, 'equipment' | 'defaultIncrementKg'>, equipment: Equipment[], increments: Record<string, number>): number {
-  if (ex.defaultIncrementKg) return ex.defaultIncrementKg;
+/**
+ * Load step for an exercise. A custom exercise's own step wins (the user knows that machine). A catalog step is a
+ * minimum progression jump, so it never goes below the user's step for that equipment (the smallest jump they can make).
+ */
+export function incrementFor(ex: Pick<ExerciseDef, 'equipment' | 'defaultIncrementKg' | 'custom'>, equipment: Equipment[], increments: Record<string, number>): number {
+  if (ex.custom && ex.defaultIncrementKg) return ex.defaultIncrementKg;
   const eq = ex.equipment.find((e) => equipment.includes(e)) ?? ex.equipment[0];
-  return increments[eq] ?? DEFAULT_INCREMENTS[eq] ?? 2.5;
+  const forEquipment = increments[eq] ?? DEFAULT_INCREMENTS[eq] ?? 2.5;
+  return Math.max(ex.defaultIncrementKg ?? 0, forEquipment);
 }
 
 /** Exposures (sessions) of an exercise from logged sets, oldest first, working sets only. */

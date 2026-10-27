@@ -26,11 +26,11 @@ for (const p of PATTERN_SEEDS) {
 }
 EXERCISE_SEEDS.forEach((e, i) => {
   out.push(
-    `insert into public.exercises (id, slug, name, pattern_id, category, equipment, is_main_lift, main_lift_key, long_length_bias, unilateral, axial_load, impact_lower_body, cues, mistakes, substitutions, slot_tags, popularity) values (` +
-      `${exId(e.slug)}, ${q(e.slug)}, ${q(e.name)}, ${q(e.pattern)}, ${q(e.category)}, ${arr(e.equipment)}, ${!!e.main}, ${q(e.main ?? null)}, ${!!e.long}, ${!!e.unilateral}, ${!!e.axial}, ${!!e.impact}, ` +
+    `insert into public.exercises (id, slug, name, pattern_id, category, equipment, is_main_lift, main_lift_key, long_length_bias, unilateral, axial_load, impact_lower_body, default_increment_kg, cues, mistakes, substitutions, slot_tags, popularity) values (` +
+      `${exId(e.slug)}, ${q(e.slug)}, ${q(e.name)}, ${q(e.pattern)}, ${q(e.category)}, ${arr(e.equipment)}, ${!!e.main}, ${q(e.main ?? null)}, ${!!e.long}, ${!!e.unilateral}, ${!!e.axial}, ${!!e.impact}, ${e.increment ?? 'null'}, ` +
       `${arr(e.cues)}, ${arr(e.mistakes)}, ${arr(e.subs)}, ${arr(e.tags)}, ${i}) on conflict (slug) do update set name = excluded.name, pattern_id = excluded.pattern_id, category = excluded.category, ` +
       `equipment = excluded.equipment, is_main_lift = excluded.is_main_lift, main_lift_key = excluded.main_lift_key, long_length_bias = excluded.long_length_bias, unilateral = excluded.unilateral, ` +
-      `axial_load = excluded.axial_load, impact_lower_body = excluded.impact_lower_body, cues = excluded.cues, mistakes = excluded.mistakes, substitutions = excluded.substitutions, slot_tags = excluded.slot_tags, popularity = excluded.popularity;`,
+      `axial_load = excluded.axial_load, impact_lower_body = excluded.impact_lower_body, default_increment_kg = excluded.default_increment_kg, cues = excluded.cues, mistakes = excluded.mistakes, substitutions = excluded.substitutions, slot_tags = excluded.slot_tags, popularity = excluded.popularity;`,
   );
   out.push(`delete from public.exercise_muscles where exercise_id = ${exId(e.slug)};`);
   for (const m of e.primary) out.push(`insert into public.exercise_muscles (exercise_id, muscle_id, role) values (${exId(e.slug)}, ${q(m)}, 'primary');`);

@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { requireUser } from '@/lib/server/context';
+import { replaceExerciseMuscles } from '@/lib/server/exercises';
+import { ExerciseTraits } from '@/lib/schemas/exercise';
 import { createLogger } from '@/lib/log';
 
 const log = createLogger('actions/admin');
@@ -34,7 +36,8 @@ export async function removeUser(email: string): Promise<R> {
   }
 }
 
-const GlobalExercise = z.object({ id: z.guid(), cues: z.array(z.string().max(160)).max(6), mistakes: z.array(z.string().max(160)).max(4) });
+// Text plus, optionally, muscles and flags. Note: `pnpm seed:gen` output (supabase/seed.sql) overwrites these on a re-seed.
+const GlobalExercise = z.object({ id: z.guid(), cues: z.array(z.string().max(160)).max(6), mistakes: z.array(z.string().max(160)).max(4), traits: ExerciseTraits.optional() });
 
 export async function updateGlobalExercise(raw: z.input<typeof GlobalExercise>): Promise<R> {
   const p = GlobalExercise.safeParse(raw);
@@ -44,14 +47,27 @@ export async function updateGlobalExercise(raw: z.input<typeof GlobalExercise>):
   }
   try {
     const { supabase } = await requireOwner();
-    log.debug('updateGlobalExercise', { exerciseId: p.data.id });
+    log.debug('updateGlobalExercise', { exerciseId: p.data.id, traits: !!p.data.traits });
+    const t = p.data.traits;
     const { error } = log.db(
       'update exercises (global)',
-      await supabase.from('exercises').update({ cues: p.data.cues, mistakes: p.data.mistakes }).eq('id', p.data.id).is('owner_user_id', null),
+      await supabase
+        .from('exercises')
+        .update({
+          cues: p.data.cues,
+          mistakes: p.data.mistakes,
+          ...(t && { long_length_bias: t.long, axial_load: t.axial, impact_lower_body: t.impact, unilateral: t.unilateral, default_increment_kg: t.increment }),
+        })
+        .eq('id', p.data.id)
+        .is('owner_user_id', null),
       { exerciseId: p.data.id },
     );
     if (error) return { ok: false, error: error.message };
-    revalidatePath('/library');
+    if (t) {
+      const mErr = await replaceExerciseMuscles(supabase, p.data.id, t.primary, t.secondary);
+      if (mErr) return { ok: false, error: `Text and flags saved, but muscles failed: ${mErr}` };
+    }
+    revalidatePath('/library', 'layout');
     return { ok: true };
   } catch (e) {
     log.error('updateGlobalExercise threw', { err: e });
