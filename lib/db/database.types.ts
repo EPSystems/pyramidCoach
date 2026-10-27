@@ -443,6 +443,9 @@ isOneToOne: false
 "admin_remove_user":
 { Args: { "p_email": string }; Returns: undefined
                            },
+"complete_onboarding":
+{ Args: { "p": Json }; Returns: undefined
+                           },
 "delete_my_account":
 { Args: Record<PropertyKey, never>; Returns: undefined
                            },
