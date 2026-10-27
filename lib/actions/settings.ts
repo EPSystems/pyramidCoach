@@ -133,10 +133,11 @@ export async function updateProfile(raw: z.input<typeof Profile>): Promise<R> {
       revalidatePath('/', 'layout');
       return { ok: false, error: `Profile saved, but lifestyle could not be updated: ${lsErr.message}` };
     }
-    // Lifestyle changes the activity factor: reset it to the new default.
+    // Lifestyle changes the activity factor: reset it to the new default. A rebase, so it doesn't use up the
+    // 14-day adjustment wait or the first-week check (DECISIONS 40).
     const { NUTRITION } = await import('@/lib/knowledge/constants');
     step = await afterSettingsSaved(user.id, 'updateProfile', async () => {
-      await recomputeNutrition(supabase, user.id, 'lifestyle change N-MNT-02', { multiplier: NUTRITION.multiplierDefault[d.lifestyle] });
+      await recomputeNutrition(supabase, user.id, 'lifestyle change N-MNT-02', { multiplier: NUTRITION.multiplierDefault[d.lifestyle], rebase: true });
     });
   }
   revalidatePath('/', 'layout');

@@ -136,11 +136,15 @@ export const NUTRITION = {
   multiplierDefault: { sedentary: 1.45, lightly_active: 1.65, active: 1.85, very_active: 2.05 } as const,
   kcalPerKgWeeklyChange: 1100, // N-RAT-03
   lossRatePctPerWeek: { min: 0.5, max: 1.0, default: 0.75, lean: 0.5, tolerance: 0.25 }, // N-RAT-01
+  lossRateOptions: [0.5, 0.75, 1] as const, // N-RAT-01 choices offered in the app
   leanBodyFat: { male: 15, female: 23, unspecified: 15 }, // APP thresholds for N-RAT-01
   gainRatePctPerMonth: { novice: [1, 2], intermediate: [0.5, 1.5], advanced: [0, 0.5] } as const, // N-RAT-02
   gainDefault: { novice: 1.5, intermediate: 1.0, advanced: 0.5 } as const,
+  gainRateOptions: [0.25, 0.5, 1, 1.5, 2] as const, // N-RAT-02 choices, filtered to the status range
   bigDeficitWarn: 750, // N-RAT-04
   cardioKcalPerKgPer10Min: { light: 0.44, moderate: 0.99, vigorous: 1.54 }, // N-SPT-01
+  sportCalibration: { minLoggedSessions: 3, lookbackDays: 28 }, // APP: logged session RPE replaces declared intensity
+  recomputeOnBodyweightKg: 0.5, // APP: a weigh-in refreshes targets when the averaged weight moves this much
   protein: { base: 1.6, leanDeficit: 2.0, leanThresholdBf: { male: 19, female: 27, unspecified: 19 } }, // N-PRO-01/02
   fatMin: { lightKg: 60, heavyKg: 90, low: 40, high: 60 }, // N-FAT-01
   fatShareOfMaintenance: 0.25, // N-FAT-01

@@ -64,3 +64,23 @@ export function readiness(c: { sleep_hours: number | null; energy: number | null
   if (score >= 2) return { label: 'Steady: autoregulate', tone: 'warn' as const };
   return { label: 'Take it easy', tone: 'danger' as const };
 }
+
+/**
+ * Reads every row of a query, a page at a time. PostgREST caps a single response at `max_rows` (1000,
+ * supabase/config.toml), so long histories and exports would otherwise be cut off without an error.
+ * `page(from, to)` must apply a total order so pages don't overlap. The first error stops the read.
+ */
+export async function fetchAllPages<T>(
+  label: string,
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  ctx: Record<string, unknown> = {},
+  pageSize = 1000,
+): Promise<{ data: T[]; error: { message: string } | null }> {
+  const out: T[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = log.db(label, await page(from, from + pageSize - 1), { ...ctx, from });
+    if (error) return { data: out, error };
+    out.push(...(data ?? []));
+    if (!data || data.length < pageSize) return { data: out, error: null };
+  }
+}
