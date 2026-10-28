@@ -15,6 +15,8 @@ export interface ExerciseSeed {
   impact?: boolean;
   unilateral?: boolean;
   main?: MainLift;
+  /** Load step in kg when it should be bigger than the equipment default (big lower-body lifts, plate-loaded machines). */
+  increment?: number;
   tags: SlotTag[];
   cues: string[];
   mistakes: string[];
@@ -60,14 +62,14 @@ export const EXERCISE_SEEDS: ExerciseSeed[] = [
   },
   {
     slug: 'hack-squat', name: 'Hack squat (machine)', pattern: 'squat', category: LM, equipment: ['machine'],
-    primary: ['quads', 'glutes'], secondary: [], long: true, tags: ['squat_machine'],
+    primary: ['quads', 'glutes'], secondary: [], long: true, increment: 10, tags: ['squat_machine'],
     cues: ['Feet mid-platform, about shoulder width', 'Lower slowly until the hips sit well below the knees', 'Keep the back flat on the pad', 'Drive through the whole foot without locking out hard'],
     mistakes: ['Cutting depth as the weight goes up'],
     subs: ['leg-press', 'back-squat', 'bulgarian-split-squat'],
   },
   {
     slug: 'leg-press', name: 'Leg press', pattern: 'squat', category: LM, equipment: ['machine'],
-    primary: ['quads', 'glutes'], secondary: [], tags: ['squat_machine'],
+    primary: ['quads', 'glutes'], secondary: [], increment: 10, tags: ['squat_machine'],
     cues: ['Feet mid-platform; lower placement biases quads', 'Lower until just before the lower back peels off the pad', 'Keep knees tracking over the toes', 'Press without slamming into lockout'],
     mistakes: ['Lower back rounding off the seat at the bottom'],
     subs: ['hack-squat', 'goblet-squat', 'bulgarian-split-squat'],
@@ -117,7 +119,7 @@ export const EXERCISE_SEEDS: ExerciseSeed[] = [
   },
   {
     slug: 'romanian-deadlift', name: 'Romanian deadlift', pattern: 'hinge', category: LF, equipment: ['barbell'],
-    primary: ['glutes', 'hamstrings', 'erectors'], secondary: ['back'], long: true, axial: true, tags: ['hinge_rdl'],
+    primary: ['glutes', 'hamstrings', 'erectors'], secondary: ['back'], long: true, axial: true, increment: 5, tags: ['hinge_rdl'],
     cues: ['Start standing, soft knees', 'Push the hips back and slide the bar down the thighs', 'Stop when the hamstrings are fully stretched and the back is still flat', 'Squeeze the glutes to stand tall'],
     mistakes: ['Rounding the lower back to reach lower', 'Bending the knees into a squat'],
     subs: ['dumbbell-romanian-deadlift', 'single-leg-rdl', 'back-extension-45', 'seated-leg-curl'],
@@ -152,7 +154,7 @@ export const EXERCISE_SEEDS: ExerciseSeed[] = [
   },
   {
     slug: 'barbell-hip-thrust', name: 'Barbell hip thrust', pattern: 'hip_extension', category: LM, equipment: ['barbell', 'machine'],
-    primary: ['glutes'], secondary: ['hamstrings'], tags: ['hip_ext'],
+    primary: ['glutes'], secondary: ['hamstrings'], increment: 5, tags: ['hip_ext'],
     cues: ['Upper back on a bench, bar padded over the hips', 'Feet flat, shins vertical at the top', 'Tuck the chin and ribs, drive the hips up', 'Pause and squeeze at the top'],
     mistakes: ['Arching the lower back instead of extending the hips'],
     subs: ['glute-bridge-machine', 'back-extension-45', 'bulgarian-split-squat'],
@@ -574,7 +576,7 @@ export function seedToExerciseDef(seed: ExerciseSeed, index: number, id = seed.s
     unilateral: !!seed.unilateral,
     axialLoad: !!seed.axial,
     impactLowerBody: !!seed.impact,
-    defaultIncrementKg: null,
+    defaultIncrementKg: seed.increment ?? null,
     muscles: [
       ...seed.primary.map((m) => ({ muscle: m, role: 'primary' as const })),
       ...seed.secondary.map((m) => ({ muscle: m, role: 'secondary' as const })),

@@ -14,7 +14,7 @@ export default async function GeneratePage({ searchParams }: PageProps<'/generat
     <div className="mx-auto max-w-5xl">
       <PageHeader kicker="Extra session · travel · short on time" title="Generate" />
       <div className="px-4 sm:px-6 lg:px-8">
-        <GenerateForm initialMuscle={m} units={ctx.units} />
+        <GenerateForm initialMuscle={m} units={ctx.units} today={ctx.today} />
       </div>
     </div>
   );

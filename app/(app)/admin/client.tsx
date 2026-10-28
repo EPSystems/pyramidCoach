@@ -8,6 +8,7 @@ import { removeUser, setUserRole, updateGlobalExercise } from '@/lib/actions/adm
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { parseIncrement, TraitFields, type Traits } from '../library/exercise-form';
 
 export function AdminClient({
   isOwner,
@@ -18,7 +19,7 @@ export function AdminClient({
   isOwner: boolean;
   usersError: string | null;
   users: { id: string; email: string; name: string; role: string; joined: string; lastActive: string; onboarded: boolean }[];
-  exercises: { id: string; name: string; cues: string[]; mistakes: string[] }[];
+  exercises: { id: string; name: string; cues: string[]; mistakes: string[]; traits: Traits }[];
 }) {
   const [pending, start] = useTransition();
   const router = useRouter();
@@ -26,6 +27,8 @@ export function AdminClient({
   const ex = exercises.find((e) => e.id === exId);
   const [cues, setCues] = useState(ex?.cues.join('\n') ?? '');
   const [mistakes, setMistakes] = useState(ex?.mistakes.join('\n') ?? '');
+  const [traits, setTraits] = useState<Traits | null>(ex?.traits ?? null);
+  const increment = traits ? parseIncrement(traits.increment) : null;
 
   return (
     <>
@@ -98,7 +101,7 @@ export function AdminClient({
       </section>
 
       <section className="bg-card space-y-3 rounded-2xl border p-5">
-        <h2 className="font-display text-2xl font-bold uppercase">Edit exercise text</h2>
+        <h2 className="font-display text-2xl font-bold uppercase">Edit exercise</h2>
         <Select
           value={exId}
           onValueChange={(v) => {
@@ -106,6 +109,7 @@ export function AdminClient({
             const e = exercises.find((x) => x.id === v);
             setCues(e?.cues.join('\n') ?? '');
             setMistakes(e?.mistakes.join('\n') ?? '');
+            setTraits(e?.traits ?? null);
           }}
         >
           <SelectTrigger className="h-11! w-full" aria-label="Exercise">
@@ -122,11 +126,18 @@ export function AdminClient({
         <Textarea rows={5} value={cues} onChange={(e) => setCues(e.target.value)} aria-label="Cues, one per line" />
         <Textarea rows={2} value={mistakes} onChange={(e) => setMistakes(e.target.value)} aria-label="Mistakes, one per line" />
         <p className="text-muted-foreground text-xs">Write in your own words. Never paste text from the books.</p>
+        {traits && <TraitFields value={traits} onChange={setTraits} incrementHint="Empty = each user's equipment setting." />}
+        <p className="text-muted-foreground text-xs">Changes reach every user&apos;s next plan. Copy them into lib/knowledge/exercises.ts too, or a re-seed restores the old values.</p>
         <Button
-          disabled={pending}
+          disabled={pending || increment === undefined || (traits != null && !traits.primary.length)}
           onClick={() =>
             start(async () => {
-              const r = await updateGlobalExercise({ id: exId, cues: cues.split('\n').map((s) => s.trim()).filter(Boolean), mistakes: mistakes.split('\n').map((s) => s.trim()).filter(Boolean) });
+              const r = await updateGlobalExercise({
+                id: exId,
+                cues: cues.split('\n').map((s) => s.trim()).filter(Boolean),
+                mistakes: mistakes.split('\n').map((s) => s.trim()).filter(Boolean),
+                traits: traits ? { ...traits, increment: increment ?? null } : undefined,
+              });
               if (!r.ok) toast.error(r.error);
               else toast.success('Saved');
             })

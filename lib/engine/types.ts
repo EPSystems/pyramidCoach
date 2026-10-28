@@ -96,7 +96,13 @@ export type SlotTag =
   | 'biceps_iso'
   | 'triceps_iso'
   | 'abs'
-  | 'traps';
+  | 'traps'
+  // Only custom exercises carry these today (derived by deriveSlotTags); no template slot asks for them yet.
+  | 'front_raise'
+  | 'forearms'
+  | 'erectors'
+  | 'adductors'
+  | 'carry';
 
 export interface ExerciseMuscle {
   muscle: MuscleId;
@@ -158,6 +164,8 @@ export interface LoggedSet {
   sessionId?: string | null;
   /** Prescribed RIR floor of the planned exercise this set was logged against (RIR drift, T-RIR-01). */
   plannedRirMin?: number | null;
+  /** When the set was logged (timestamptz); used for the generator's real 48 h window. */
+  loggedAt?: string | null;
 }
 
 export interface PreviousBlockSummary {
