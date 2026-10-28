@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { createLogger } from '@/lib/log';
+import { loginRedirect, safeNext } from '@/lib/utils/redirect';
 
 const log = createLogger('proxy');
 
@@ -31,17 +32,14 @@ export async function proxy(request: NextRequest) {
   const isPublic = PUBLIC.some((p) => path === p || path.startsWith(`${p}/`));
   if (!user && !isPublic) {
     log.debug('redirect to /login', { path });
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    url.search = '';
-    return NextResponse.redirect(url);
+    // Keep the page they asked for (?next=, validated by safeNext) so sign-in returns them to it.
+    return NextResponse.redirect(new URL(loginRedirect(path, request.nextUrl.search), request.url));
   }
   // '/' is answered here too, so opening the app skips rendering app/page.tsx just to redirect.
   if (user && (path === '/' || SIGNED_OUT_ONLY.includes(path))) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/today';
-    url.search = '';
-    const redirect = NextResponse.redirect(url);
+    // A signed-in user on /login?next=… (e.g. a second tab) goes straight to that page.
+    const dest = path === '/' ? '/today' : safeNext(request.nextUrl.searchParams.get('next'));
+    const redirect = NextResponse.redirect(new URL(dest, request.url));
     // Keep any session cookies getUser() just refreshed.
     response.cookies.getAll().forEach((c) => redirect.cookies.set(c));
     return redirect;
