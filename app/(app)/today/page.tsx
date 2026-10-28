@@ -23,7 +23,7 @@ const log = createLogger('today/page');
 // (inputs snapshot, schedule, selections, explanations) that Today never shows.
 const BLOCK_COLS = 'kind, starts_on, weeks, intro_week';
 const SESSION_COLS =
-  'id, title, kind, status, scheduled_on, est_minutes, template_key, order_in_week, planned_exercises(id, position, sets, rep_min, rep_max, rir_min, rir_max, is_main_lift_single, label, exercises(name))';
+  'id, title, kind, status, scheduled_on, est_minutes, template_key, order_in_week, planned_exercises(id, position, sets, rep_min, rep_max, rir_min, rir_max, is_main_lift_single, label, exercises!planned_exercises_exercise_id_fkey(name))';
 
 export default async function TodayPage() {
   const ctx = await requireOnboarded();

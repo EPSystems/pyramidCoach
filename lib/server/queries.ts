@@ -15,7 +15,7 @@ export async function sessionsBetween(supabase: Supa, userId: string, from: stri
     'select planned_sessions',
     await supabase
       .from('planned_sessions')
-      .select('*, planned_exercises(*, exercises(name, slug, category))')
+      .select('*, planned_exercises(*, exercises!planned_exercises_exercise_id_fkey(name, slug, category))')
       .eq('user_id', userId)
       .gte('scheduled_on', from)
       .lt('scheduled_on', to)

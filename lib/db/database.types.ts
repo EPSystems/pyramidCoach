@@ -238,6 +238,12 @@ isOneToOne: false
       referencedRelation: "exercises"
       referencedColumns: ["id"]
     },{
+      foreignKeyName: "planned_exercises_original_exercise_id_fkey"
+      columns: ["original_exercise_id"]
+isOneToOne: false
+      referencedRelation: "exercises"
+      referencedColumns: ["id"]
+    },{
       foreignKeyName: "planned_exercises_session_id_fkey"
       columns: ["session_id"]
 isOneToOne: false
@@ -440,14 +446,14 @@ isOneToOne: false
               "display_name": string,"email": string,"joined": string,"last_active": string,"onboarded": boolean,"role": string,"user_id": string
             }[]
                            },
-"apply_plan_writes":
-{ Args: { "p": Json }; Returns: Json
-                           },
 "admin_remove_user":
 { Args: { "p_email": string }; Returns: undefined
                            },
 "admin_set_role":
 { Args: { "p_role": string,"p_user_id": string }; Returns: undefined
+                           },
+"apply_plan_writes":
+{ Args: { "p": Json }; Returns: Json
                            },
 "auth_user_fk_report":
 { Args: Record<PropertyKey, never>; Returns: {
