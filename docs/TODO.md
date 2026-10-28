@@ -40,7 +40,8 @@ Supabase's built-in mailer only sends to project team members and is heavily rat
 - [ ] Share the sign-up link (`https://pyramid-coach.vercel.app/signup`) with the first users (email sign-up needs step 3; Google works without it)
 
 ## Hardening before calling it polished
-- [ ] **Offline support**: add a service worker so the app opens and set logging queues without signal (gyms have bad reception)
+- [x] **Offline support**: add a service worker so the app opens and set logging queues without signal (gyms have bad reception) — `public/sw.js`, `lib/offline/`, DECISIONS 37–41
+  - [ ] Verify on a real Android phone (installed PWA): open Today/session with signal, switch to airplane mode, reopen the app, log sets ("Pending sync"), turn signal back on and confirm they sync
 - [ ] Error monitoring (Sentry or Vercel logs/alerts)
 - [ ] Backups: review Supabase plan backup retention once real data exists
 - [ ] Privacy policy page (stores weight/body-fat data from EU users)

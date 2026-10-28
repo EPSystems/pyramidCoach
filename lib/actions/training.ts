@@ -135,9 +135,17 @@ const LogSetInput = z.object({
   rir: z.number().min(0).max(10).nullable(),
   rx: z.object({ repMin: z.number(), repMax: z.number(), rirMin: z.number(), rirMax: z.number() }),
   increment: z.number().positive(),
+  /** Set by the offline queue (DECISIONS 39): the phone's day when the set was logged, which may be before it syncs. */
+  performedOn: z.iso.date().optional(),
 });
 
-/** Idempotent on (planned_exercise_id, set_index) (Section 11). Returns the next-set suggestion (6.10). */
+/** Days a queued set may be back-dated on replay; anything else falls back to today. */
+const MAX_BACKDATE_DAYS = 7;
+
+/**
+ * Idempotent on (planned_exercise_id, set_index) (Section 11), so the offline queue can replay a set that already
+ * reached the server. Returns the next-set suggestion (6.10).
+ */
 export async function logSet(raw: z.input<typeof LogSetInput>): Promise<Result<{ id: string; next: { load: number | null; repsTarget: number; ruleIds: string[] } }>> {
   const p = LogSetInput.safeParse(raw);
   if (!p.success) {
@@ -146,7 +154,8 @@ export async function logSet(raw: z.input<typeof LogSetInput>): Promise<Result<{
   }
   const d = p.data;
   const { supabase, user, today } = await userToday();
-  log.debug('logSet', { sessionId: d.sessionId, plannedExerciseId: d.plannedExerciseId, setIndex: d.setIndex });
+  const performedOn = d.performedOn && d.performedOn <= today && d.performedOn >= addDays(today, -MAX_BACKDATE_DAYS) ? d.performedOn : today;
+  log.debug('logSet', { sessionId: d.sessionId, plannedExerciseId: d.plannedExerciseId, setIndex: d.setIndex, replay: d.performedOn != null });
   const { data, error } = log.db('upsert logged_sets', await supabase
     .from('logged_sets')
     .upsert(
@@ -155,7 +164,7 @@ export async function logSet(raw: z.input<typeof LogSetInput>): Promise<Result<{
         session_id: d.sessionId,
         planned_exercise_id: d.plannedExerciseId,
         exercise_id: d.exerciseId,
-        performed_on: today,
+        performed_on: performedOn,
         set_index: d.setIndex,
         load_kg: d.loadKg,
         reps: d.reps,

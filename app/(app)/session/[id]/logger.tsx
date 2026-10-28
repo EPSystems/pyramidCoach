@@ -3,9 +3,12 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Check, ChevronDown, EllipsisVertical, Flame, Minus, Plus, Repeat2, SkipForward, StickyNote, Timer, TrendingDown, TrendingUp, Trophy, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, CloudOff, EllipsisVertical, Flame, Minus, Plus, Repeat2, SkipForward, StickyNote, Timer, TrendingDown, TrendingUp, Trophy, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { addSetToExercise, addSoreness, deleteSet, finishSession, logSet, saveExerciseNote, skipExercise, swapExercise } from '@/lib/actions/training';
+import { addSetToExercise, addSoreness, finishSession, saveExerciseNote, skipExercise, swapExercise } from '@/lib/actions/training';
+import { deleteSetOrDequeue, logSetOrQueue } from '@/lib/offline/log-set';
+import { flushOutbox, onOutboxChange, pendingSets } from '@/lib/offline/outbox';
+import { setKey } from '@/lib/offline/queue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -52,6 +55,8 @@ interface Row {
   reps: number;
   rir: number | null;
   logged: boolean;
+  /** Logged without a connection; waiting in the offline outbox. */
+  pending?: boolean;
 }
 
 const defaultRir = (rx: LoggerExercise['rx'], i: number) => Math.max(rx.rirMin, rx.rirMax - i);
@@ -89,6 +94,33 @@ export function Logger({ session, exercises, units }: { session: { id: string; t
   const [rows, setRows] = useState<Record<string, Row[]>>(() => Object.fromEntries(exercises.map((e) => [e.plannedId + e.exerciseId, initRows(e)])));
   const [finishing, setFinishing] = useState(false);
   const router = useRouter();
+
+  // Sets logged offline live in the outbox until they sync: show them as logged (pending), and settle them as the outbox drains.
+  useEffect(() => {
+    const rowsKey = new Map(exercises.map((e) => [e.plannedId, e.plannedId + e.exerciseId]));
+    const plannedOf = new Map(exercises.map((e) => [e.plannedId + e.exerciseId, e.plannedId]));
+    const settle = (keys: Set<string>, p: Partial<Row>) =>
+      setRows((all) => Object.fromEntries(Object.entries(all).map(([k, rs]) => [k, rs.map((r, i) => (r.pending && keys.has(setKey(plannedOf.get(k) ?? '', i)) ? { ...r, ...p } : r))])));
+    void pendingSets(session.id).then((queued) => {
+      if (!queued.length) return;
+      setRows((all) => {
+        const next = { ...all };
+        for (const { input: q } of queued) {
+          const k = rowsKey.get(q.plannedExerciseId);
+          if (!k || !next[k]) continue;
+          const rs = [...next[k]];
+          while (rs.length <= q.setIndex) rs.push({ load: q.loadKg, reps: q.reps, rir: q.rir, logged: false });
+          rs[q.setIndex] = { load: q.loadKg, reps: q.reps, rir: q.rir, logged: true, pending: true };
+          next[k] = rs;
+        }
+        return next;
+      });
+    });
+    return onOutboxChange(({ synced, failed }) => {
+      if (synced.length) settle(new Set(synced), { pending: false });
+      if (failed.length) settle(new Set(failed.map((f) => f.key)), { pending: false, logged: false });
+    });
+  }, [session.id, exercises]);
 
   const totalSets = exercises.filter((e) => !e.skipped).reduce((a, e) => a + (rows[e.plannedId + e.exerciseId]?.length ?? 0), 0);
   const doneSets = exercises.reduce((a, e) => a + (rows[e.plannedId + e.exerciseId]?.filter((r) => r.logged).length ?? 0), 0);
@@ -211,7 +243,7 @@ function ExerciseCard({
   async function undoSet(i: number) {
     patch(i, { logged: false });
     // A thrown action (network drop, server crash) is treated like a failed result: revert and tell the user.
-    const res = await deleteSet(ex.plannedId, i).catch((e: unknown) => {
+    const res = await deleteSetOrDequeue(ex.plannedId, i).catch((e: unknown) => {
       log.error('deleteSet threw', { plannedExerciseId: ex.plannedId, setIndex: i, err: e });
       return { ok: false as const, error: 'Could not undo that set. Check your connection and try again.' };
     });
@@ -219,15 +251,16 @@ function ExerciseCard({
       log.warn('deleteSet failed', { plannedExerciseId: ex.plannedId, setIndex: i, error: res.error });
       patch(i, { logged: true });
       toast.error(res.error);
-    }
+    } else patch(i, { pending: false });
   }
 
   async function saveSet(i: number, r: Row) {
     patch(i, { logged: true });
     onLogged();
-    const res = await logSet({ sessionId, plannedExerciseId: ex.plannedId, exerciseId: ex.exerciseId, setIndex: i, loadKg: r.load, reps: r.reps, rir: r.rir, rx: ex.rx, increment: ex.increment }).catch((e: unknown) => {
+    // No connection: the set is queued on the phone (shown as pending) and synced later; see lib/offline.
+    const res = await logSetOrQueue({ sessionId, plannedExerciseId: ex.plannedId, exerciseId: ex.exerciseId, setIndex: i, loadKg: r.load, reps: r.reps, rir: r.rir, rx: ex.rx, increment: ex.increment }).catch((e: unknown) => {
       log.error('logSet threw', { sessionId, plannedExerciseId: ex.plannedId, setIndex: i, err: e });
-      return { ok: false as const, error: 'Could not save that set. Check your connection and try again.', data: undefined };
+      return { ok: false as const, error: 'Could not save that set. Check your connection and try again.' };
     });
     if (!res.ok) {
       log.warn('logSet failed', { sessionId, plannedExerciseId: ex.plannedId, setIndex: i, error: res.error });
@@ -235,7 +268,8 @@ function ExerciseCard({
       toast.error(res.error);
       return;
     }
-    const next = res.data!.next;
+    if (res.queued) patch(i, { pending: true });
+    const next = res.data.next;
     setRows((prev) =>
       prev.map((row, j) => {
         if (j <= i || row.logged) return row;
@@ -368,16 +402,22 @@ function ExerciseCard({
                 </button>
               </div>
             </div>
+            {r.pending && (
+              <span className="stamp text-muted-foreground order-3 inline-flex items-center gap-1 sm:order-2" title="Saved on this phone; syncs when you're back online">
+                <CloudOff className="size-3.5" /> Pending sync
+              </span>
+            )}
             <button
               type="button"
               onClick={() => void toggle(i)}
               disabled={skipped || saving.has(i)}
               aria-busy={saving.has(i)}
               aria-pressed={r.logged}
-              aria-label={r.logged ? `Undo set ${i + 1}` : `Log set ${i + 1}`}
+              aria-label={r.logged ? `Undo set ${i + 1}${r.pending ? ' (pending sync)' : ''}` : `Log set ${i + 1}`}
               className={cn(
                 'order-3 ml-auto grid size-12 shrink-0 place-items-center rounded-xl border-2 transition-all sm:order-2',
                 r.logged ? 'bg-volt text-volt-ink border-volt pop' : 'border-volt/60 text-volt hover:bg-volt/10',
+                r.pending && 'border-dashed opacity-80',
               )}
             >
               <Check className="size-6" strokeWidth={3} />
@@ -611,7 +651,12 @@ function FinishDialog({
                   const s = await addSoreness(sore);
                   if (!s.ok) log.warn('addSoreness failed, finishing anyway', { sessionId: session.id, error: s.error });
                 }
-                const r = await finishSession(session.id);
+                // Sync any sets logged offline first, so the finished session includes them.
+                await flushOutbox();
+                const r = await finishSession(session.id).catch((e: unknown) => {
+                  log.error('finishSession threw', { sessionId: session.id, err: e });
+                  return { ok: false as const, error: 'Could not finish the session. Check your connection and try again.' };
+                });
                 if (!r.ok) return void toast.error(r.error);
                 toast.success('Session saved. Nice work.');
                 router.push('/today');
