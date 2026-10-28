@@ -26,6 +26,7 @@ interface Training {
   sessionMinutes: 30 | 45 | 60 | 75 | 90 | 120;
   maxLiftDays: number | null;
   splitStyle: 'default' | 'alternative';
+  liftingTime: 'morning' | 'midday' | 'evening' | null;
   repVariation: 'within_session' | 'between_session' | 'alternating_week';
   equipment: Equipment[];
   increments: { barbell: number; dumbbell: number; machine: number; cable: number };
@@ -153,6 +154,14 @@ export function SettingsForms({ training, profile, userSports, catalog, injuries
         <Row label="Split style" hint="Alternative: Upper/Lower → Pyramid alternating (4 days), Full Push / Full Pull for 3, 5 and 6 days.">
           <Segmented label="Split style" value={t.splitStyle} onChange={(v) => setT({ ...t, splitStyle: v })} options={[{ value: 'default', label: 'Default' }, { value: 'alternative', label: 'Alternative' }]} />
         </Row>
+        <Row label="Usual lifting time" hint={<>Sport sessions are placed after lifting or a few hours apart when possible. <Why ruleIds={['T-SCH-03']} /></>}>
+          <Segmented
+            label="Lifting time"
+            value={t.liftingTime ?? 'any'}
+            onChange={(v) => setT({ ...t, liftingTime: v === 'any' ? null : v })}
+            options={[{ value: 'any', label: 'Varies' }, { value: 'morning', label: 'Morning' }, { value: 'midday', label: 'Midday' }, { value: 'evening', label: 'Evening' }]}
+          />
+        </Row>
         <Row label="Rep-range variation" hint={<>How heavier and lighter rep ranges rotate. <Why ruleIds={['T-INT-04']} /></>}>
           <Segmented label="Rep variation" value={t.repVariation} onChange={(v) => setT({ ...t, repVariation: v })} options={[{ value: 'within_session', label: 'In session' }, { value: 'between_session', label: 'A/B days' }, { value: 'alternating_week', label: 'A/B weeks' }]} />
         </Row>
@@ -241,7 +250,7 @@ export function SettingsForms({ training, profile, userSports, catalog, injuries
             <RefreshCw /> Regenerate plan
           </Button>
         </div>
-        <p className="text-muted-foreground text-xs">Changes replace future planned sessions from today; your logged history is never touched.</p>
+        <p className="text-muted-foreground text-xs">Changes replace future planned sessions from today; your moves, skips and one-off swaps are kept, and your logged history is never touched.</p>
       </Section>
 
       <SportsEditor userSports={userSports} catalog={catalog} />

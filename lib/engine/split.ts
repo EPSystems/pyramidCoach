@@ -123,6 +123,8 @@ export const SPLITS: Record<string, SplitDef> = {
   LPP5: { key: 'LPP5', name: 'Lower / Push / Pull / Full Push / Full Pull', templates: ['lower_a', 'upper_push', 'upper_pull', 'full_push', 'full_pull'] },
   PYR6: { key: 'PYR6', name: 'Pyramid alternating ×3', templates: ['pyr_cb_qc', 'pyr_arms_gh', 'pyr_cb_qc', 'pyr_arms_gh', 'pyr_cb_qc', 'pyr_arms_gh'] },
   FPP6: { key: 'FPP6', name: 'Full Push / Full Pull ×3', templates: ['full_push', 'full_pull', 'full_push', 'full_pull', 'full_push', 'full_pull'] },
+  // Strength 6-day: UL4 + two full-body days, so squat and bench get 2 main-lift exposures (T-FRQ-03, T-STR-05).
+  ULF6: { key: 'ULF6', name: 'Upper / Lower ×2 + Full Body ×2', templates: ['upper_a', 'lower_a', 'full_c', 'upper_b', 'lower_b', 'full_a'] },
 };
 
 /**
@@ -154,8 +156,8 @@ export function chooseSplit(
       key = alt ? 'LPP5' : 'UL5';
       break;
     default:
-      // 6 days is never chosen for the strength goal (k is capped at 5 there).
-      key = alt ? 'FPP6' : 'PYR6';
+      // Strength needs main-lift slots, which PYR6/FPP6 don't have (T-FRQ-03: spread the lifts over as many sessions as possible).
+      key = opts.goal === 'strength' ? 'ULF6' : alt ? 'FPP6' : 'PYR6';
       break;
   }
   return { split: SPLITS[key], ruleIds };

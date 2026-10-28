@@ -22,6 +22,7 @@ export default async function SettingsPage() {
             sessionMinutes: settings.session_minutes as never,
             maxLiftDays: settings.max_lift_days,
             splitStyle: settings.split_style as never,
+            liftingTime: (settings.lifting_time ?? null) as never,
             repVariation: settings.rep_variation as never,
             equipment: settings.equipment as never,
             increments: settings.increments as never,

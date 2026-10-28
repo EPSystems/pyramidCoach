@@ -203,6 +203,10 @@ export interface BlockInput {
   targetAdjustments?: Partial<Record<TrackedMuscle, number>>;
   /** True when the block follows a Load/Peak phase (T-FAT-06). */
   fromHeavyPhase?: boolean;
+  /** Usual lifting time of day; null/undefined = unknown (a morning sport is then assumed to come first). */
+  liftingTime?: TimeOfDay | null;
+  /** Earliest date to materialise sessions for (default `today`). Regeneration passes this Monday so carry-over can match moved sessions. */
+  materialiseFrom?: string;
 }
 
 export interface RuleTagged {
@@ -235,6 +239,8 @@ export interface PlannedExercise extends Prescription {
   exerciseId: string;
   slotKey: string;
   position: number;
+  /** The engine's own choice when the user swapped this exercise for this session only (carry-over). */
+  originalExerciseId?: string;
 }
 
 export interface PlannedSession {
@@ -246,6 +252,12 @@ export interface PlannedSession {
   orderInWeek: number;
   estMinutes: number;
   exercises: PlannedExercise[];
+  /** Stable identity across regenerations: week Monday | template | occurrence in that week (see carryover.ts). */
+  planKey?: string;
+  /** The engine's date when the user moved the session (carry-over); `date` is then the user's date. */
+  plannedOn?: string;
+  /** 'skipped' when the user skipped this session before a regeneration (carry-over). Default 'planned'. */
+  status?: 'planned' | 'skipped';
 }
 
 export interface Warning {

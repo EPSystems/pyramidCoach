@@ -25,6 +25,8 @@ const Training = z.object({
   sessionMinutes: z.union([z.literal(30), z.literal(45), z.literal(60), z.literal(75), z.literal(90), z.literal(120)]),
   maxLiftDays: z.number().int().min(1).max(6).nullable(),
   splitStyle: z.enum(['default', 'alternative']),
+  // Optional so older clients keep working; null = unknown (T-SCH-03 then assumes a morning sport comes first).
+  liftingTime: z.enum(['morning', 'midday', 'evening']).nullable().optional(),
   repVariation: z.enum(['within_session', 'between_session', 'alternating_week']),
   equipment: z.array(z.enum(['barbell', 'dumbbell', 'machine', 'cable', 'bodyweight', 'band', 'sled'])).min(1),
   increments: z.object({ barbell: z.number().positive().max(10), dumbbell: z.number().positive().max(10), machine: z.number().positive().max(20), cable: z.number().positive().max(10) }),
@@ -56,6 +58,7 @@ export async function updateTraining(raw: z.input<typeof Training>): Promise<R> 
       session_minutes: d.sessionMinutes,
       max_lift_days: d.maxLiftDays,
       split_style: d.splitStyle,
+      lifting_time: d.liftingTime === undefined ? undefined : d.liftingTime,
       rep_variation: d.repVariation,
       equipment: d.equipment,
       increments: d.increments,

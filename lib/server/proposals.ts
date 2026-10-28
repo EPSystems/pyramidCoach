@@ -1,10 +1,9 @@
 import 'server-only';
 import type { Supa } from '@/lib/supabase/server';
-import type { TablesUpdate } from '@/lib/db/database.types';
 import { applyProposal } from '@/lib/engine/proposals';
 import type { PlannedSessionState, Proposal, ProposalKind, Status } from '@/lib/engine/types';
 import { loadExercises } from './context';
-import { recomputeNutrition, regeneratePlan, toJson } from './plan';
+import { applyPlanWrites, buildNutritionWrites, buildRegeneration, toJson, type PlanWrites } from './plan';
 import { createLogger } from '@/lib/log';
 
 const log = createLogger('server/proposals');
@@ -102,54 +101,47 @@ export async function acceptProposalById(supabase: Supa, userId: string, id: str
   const [plan, exercises] = await Promise.all([loadStoredPlan(supabase, userId, today), loadExercises(supabase)]);
   const diff = applyProposal({ sessions: plan, exercises, today }, proposal);
 
-  // Every write below is checked; the first failure throws so the proposal is never marked accepted
-  // with only part of it applied. (No transaction is available app-side, so earlier rows stay written.)
-  const must = <T extends { error: { message: string } | null }>(op: string, res: T, ctx: Record<string, unknown>) => {
-    if (log.db(op, res, { proposalId: id, ...ctx }).error) throw new Error(`Could not apply the proposal (${op}). Please try again.`);
-    return res;
+  // Everything the proposal changes, plus marking it accepted, is written by one apply_plan_writes call:
+  // one transaction, so a failure leaves nothing half-applied and a double accept writes nothing (docs/DECISIONS.md, "Atomic plan writes").
+  const writes: PlanWrites = {
+    accept_proposal_id: id,
+    exercise_updates: diff.exerciseUpdates.map((u) => ({ id: u.id, sets: u.sets, rir_min: u.rirMin, rir_max: u.rirMax, exercise_id: u.exerciseId })),
+    exercise_deletes: diff.exerciseDeletes,
+    session_updates: diff.sessionUpdates.map((s) => ({ id: s.id, status: s.status, kind: s.kind })),
   };
-  for (const u of diff.exerciseUpdates) {
-    const patch: TablesUpdate<'planned_exercises'> = {};
-    if (u.sets != null) patch.sets = u.sets;
-    if (u.rirMin != null) patch.rir_min = u.rirMin;
-    if (u.rirMax != null) patch.rir_max = u.rirMax;
-    if (u.exerciseId) patch.exercise_id = u.exerciseId;
-    must('update planned_exercises', await supabase.from('planned_exercises').update(patch).eq('id', u.id).eq('user_id', userId), { plannedExerciseId: u.id });
-  }
-  if (diff.exerciseDeletes.length)
-    must('delete planned_exercises', await supabase.from('planned_exercises').delete().in('id', diff.exerciseDeletes).eq('user_id', userId), { count: diff.exerciseDeletes.length });
-  for (const s of diff.sessionUpdates) {
-    const patch: TablesUpdate<'planned_sessions'> = {};
-    if (s.status) patch.status = s.status;
-    if (s.kind) patch.kind = s.kind;
-    must('update planned_sessions', await supabase.from('planned_sessions').update(patch).eq('id', s.id).eq('user_id', userId), { sessionId: s.id });
-  }
-  if (diff.settings?.trainingStatus) {
-    must(
-      'update user_settings.training_status',
-      await supabase.from('user_settings').update({ training_status: diff.settings.trainingStatus as Status, status_source: 'inferred' }).eq('user_id', userId),
-      {},
-    );
-  }
+  const inferredStatus = diff.settings?.trainingStatus as Status | undefined;
+  if (inferredStatus) writes.settings = { training_status: inferredStatus, status_source: 'inferred' };
   if (diff.regenerate) {
-    const isTransition = proposal.kind === 'block_transition';
-    await regeneratePlan(supabase, userId, {
+    const regen = await buildRegeneration(supabase, userId, {
       reason: diff.regenerate.reason,
       blockKind: diff.regenerate.blockKind,
       startsOn: diff.regenerate.startsOn,
       fromHeavyPhase: diff.regenerate.fromHeavyPhase,
       addAdjustments: diff.regenerate.targetAdjustments,
-      resetAdjustments: isTransition,
+      resetAdjustments: proposal.kind === 'block_transition',
+      // The new plan must already use the status this proposal sets.
+      inferredStatus,
     });
+    writes.plan = regen.writes.plan;
+    writes.settings = { ...writes.settings, ...regen.writes.settings };
   }
-  if (diff.nutrition?.kcal != null) {
-    // A failed read would turn the kcal change into a zero delta, so it must stop here.
-    const { data: cur } = must('select latest nutrition_targets', await supabase.from('nutrition_targets').select('kcal').eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle(), {});
-    await recomputeNutrition(supabase, userId, 'calorie_adjust N-ADJ-02', { kcalOffsetDelta: diff.nutrition.kcal - (cur?.kcal ?? diff.nutrition.kcal) });
+  if (diff.nutrition?.kcal != null || diff.nutrition?.multiplier != null) {
+    let kcalOffsetDelta: number | undefined;
+    if (diff.nutrition.kcal != null) {
+      // A failed read would turn the kcal change into a zero delta, so it must stop here.
+      const { data: cur, error: curErr } = log.db(
+        'select latest nutrition_targets',
+        await supabase.from('nutrition_targets').select('kcal').eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        { proposalId: id },
+      );
+      if (curErr) throw new Error('Could not apply the proposal (select latest nutrition_targets). Please try again.');
+      kcalOffsetDelta = diff.nutrition.kcal - (cur?.kcal ?? diff.nutrition.kcal);
+    }
+    const reason = diff.nutrition.kcal != null ? 'calorie_adjust N-ADJ-02' : 'multiplier_adjust N-ADJ-01';
+    const n = await buildNutritionWrites(supabase, userId, reason, { kcalOffsetDelta, multiplier: diff.nutrition.multiplier });
+    writes.nutrition_target = n.writes.nutrition_target;
+    writes.nutrition_settings = n.writes.nutrition_settings;
   }
-  if (diff.nutrition?.multiplier != null) {
-    await recomputeNutrition(supabase, userId, 'multiplier_adjust N-ADJ-01', { multiplier: diff.nutrition.multiplier });
-  }
-  must('mark proposal accepted', await supabase.from('proposals').update({ status: 'accepted', decided_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId), {});
+  await applyPlanWrites(supabase, userId, writes, { proposalId: id, kind: row.kind });
   return diff;
 }

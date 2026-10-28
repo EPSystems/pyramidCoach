@@ -266,10 +266,37 @@ export async function finishSession(sessionId: string): Promise<Result> {
   return { ok: true };
 }
 
+/** Only a session that hasn't started can be skipped. Regeneration keeps the skip (lib/engine/carryover.ts). */
 export async function skipSession(sessionId: string): Promise<Result> {
   const { supabase, user } = await requireUser();
   log.debug('skipSession', { sessionId });
-  const { error } = log.db('update planned_sessions -> skipped', await supabase.from('planned_sessions').update({ status: 'skipped' }).eq('id', sessionId).eq('user_id', user.id), { sessionId });
+  const { data, error } = log.db(
+    'update planned_sessions -> skipped',
+    await supabase.from('planned_sessions').update({ status: 'skipped' }).eq('id', sessionId).eq('user_id', user.id).in('status', ['planned', 'moved']).select('id'),
+    { sessionId },
+  );
+  if (error) return fail(error.message);
+  if (!data?.length) return fail('This session has already started or is not planned any more.');
+  revalidatePath('/', 'layout');
+  return { ok: true };
+}
+
+/** Undo a skip. Refused when another lifting session now sits on that day (T-FAT-07). */
+export async function unskipSession(sessionId: string): Promise<Result> {
+  const { supabase, user } = await requireUser();
+  log.debug('unskipSession', { sessionId });
+  const { data: s, error: sErr } = log.db('select planned_sessions', await supabase.from('planned_sessions').select('scheduled_on, status').eq('id', sessionId).eq('user_id', user.id).maybeSingle(), { sessionId });
+  if (sErr) return fail(sErr.message);
+  if (!s || s.status !== 'skipped') return fail('This session is not skipped.');
+  // A failed read must not count as "nothing that day", or the double-session guard is skipped.
+  const { data: sameDay, error: sameDayErr } = log.db(
+    'select same-day sessions',
+    await supabase.from('planned_sessions').select('id, kind').eq('user_id', user.id).eq('scheduled_on', s.scheduled_on).neq('id', sessionId).in('status', ['planned', 'in_progress', 'done']),
+    { sessionId },
+  );
+  if (sameDayErr) return fail(sameDayErr.message);
+  if ((sameDay ?? []).some((x) => x.kind !== 'generated')) return fail('Another lifting session is on that day now. Move one of them first (T-FAT-07).');
+  const { error } = log.db('update planned_sessions -> planned', await supabase.from('planned_sessions').update({ status: 'planned' }).eq('id', sessionId).eq('user_id', user.id).eq('status', 'skipped'), { sessionId });
   if (error) return fail(error.message);
   revalidatePath('/', 'layout');
   return { ok: true };

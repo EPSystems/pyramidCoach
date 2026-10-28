@@ -221,14 +221,14 @@ isOneToOne: false
                   ]
                 },"planned_exercises": {
                   Row: {
-                    "exercise_id": string,"id": string,"is_main_lift_single": boolean | null,"note": string | null,"position": number,"rep_max": number,"rep_min": number,"rest_seconds": number,"rir_max": number,"rir_min": number,"rule_ids": (string)[],"session_id": string,"sets": number,"skipped": boolean,"slot_key": string | null,"suggested_load_kg": number | null,"user_id": string
+                    "exercise_id": string,"id": string,"is_main_lift_single": boolean | null,"note": string | null,"original_exercise_id": string | null,"position": number,"rep_max": number,"rep_min": number,"rest_seconds": number,"rir_max": number,"rir_min": number,"rule_ids": (string)[],"session_id": string,"sets": number,"skipped": boolean,"slot_key": string | null,"suggested_load_kg": number | null,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "exercise_id": string,"id"?: string,"is_main_lift_single"?: boolean | null,"note"?: string | null,"position": number,"rep_max": number,"rep_min": number,"rest_seconds": number,"rir_max": number,"rir_min": number,"rule_ids"?: (string)[],"session_id": string,"sets": number,"skipped"?: boolean,"slot_key"?: string | null,"suggested_load_kg"?: number | null,"user_id": string
+                    "exercise_id": string,"id"?: string,"is_main_lift_single"?: boolean | null,"note"?: string | null,"original_exercise_id"?: string | null,"position": number,"rep_max": number,"rep_min": number,"rest_seconds": number,"rir_max": number,"rir_min": number,"rule_ids"?: (string)[],"session_id": string,"sets": number,"skipped"?: boolean,"slot_key"?: string | null,"suggested_load_kg"?: number | null,"user_id": string
                   }
                   Update: {
-                    "exercise_id"?: string,"id"?: string,"is_main_lift_single"?: boolean | null,"note"?: string | null,"position"?: number,"rep_max"?: number,"rep_min"?: number,"rest_seconds"?: number,"rir_max"?: number,"rir_min"?: number,"rule_ids"?: (string)[],"session_id"?: string,"sets"?: number,"skipped"?: boolean,"slot_key"?: string | null,"suggested_load_kg"?: number | null,"user_id"?: string
+                    "exercise_id"?: string,"id"?: string,"is_main_lift_single"?: boolean | null,"note"?: string | null,"original_exercise_id"?: string | null,"position"?: number,"rep_max"?: number,"rep_min"?: number,"rest_seconds"?: number,"rir_max"?: number,"rir_min"?: number,"rule_ids"?: (string)[],"session_id"?: string,"sets"?: number,"skipped"?: boolean,"slot_key"?: string | null,"suggested_load_kg"?: number | null,"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -247,14 +247,14 @@ isOneToOne: false
                   ]
                 },"planned_sessions": {
                   Row: {
-                    "block_id": string | null,"est_minutes": number | null,"finished_at": string | null,"id": string,"kind": string,"order_in_week": number,"scheduled_on": string,"started_at": string | null,"status": string,"template_key": string,"title": string,"user_id": string,"week_index": number
+                    "block_id": string | null,"est_minutes": number | null,"finished_at": string | null,"id": string,"kind": string,"order_in_week": number,"plan_key": string | null,"planned_on": string | null,"scheduled_on": string,"started_at": string | null,"status": string,"template_key": string,"title": string,"user_id": string,"week_index": number
                   }
                   ComputedFields: never
                   Insert: {
-                    "block_id"?: string | null,"est_minutes"?: number | null,"finished_at"?: string | null,"id"?: string,"kind"?: string,"order_in_week": number,"scheduled_on": string,"started_at"?: string | null,"status"?: string,"template_key": string,"title": string,"user_id": string,"week_index": number
+                    "block_id"?: string | null,"est_minutes"?: number | null,"finished_at"?: string | null,"id"?: string,"kind"?: string,"order_in_week": number,"plan_key"?: string | null,"planned_on"?: string | null,"scheduled_on": string,"started_at"?: string | null,"status"?: string,"template_key": string,"title": string,"user_id": string,"week_index": number
                   }
                   Update: {
-                    "block_id"?: string | null,"est_minutes"?: number | null,"finished_at"?: string | null,"id"?: string,"kind"?: string,"order_in_week"?: number,"scheduled_on"?: string,"started_at"?: string | null,"status"?: string,"template_key"?: string,"title"?: string,"user_id"?: string,"week_index"?: number
+                    "block_id"?: string | null,"est_minutes"?: number | null,"finished_at"?: string | null,"id"?: string,"kind"?: string,"order_in_week"?: number,"plan_key"?: string | null,"planned_on"?: string | null,"scheduled_on"?: string,"started_at"?: string | null,"status"?: string,"template_key"?: string,"title"?: string,"user_id"?: string,"week_index"?: number
                   }
                   Relationships: [
                     {
@@ -343,14 +343,14 @@ isOneToOne: false
                   ]
                 },"user_settings": {
                   Row: {
-                    "available_days": (number)[],"disliked_exercise_ids": (string)[],"e1rm_seeds": NonNullable<Json>,"equipment": (string)[],"goal": string,"increments": NonNullable<Json>,"lifestyle": string,"max_lift_days": number | null,"priority": string,"rep_variation": string,"session_minutes": number,"specialization_muscles": (string)[],"split_style": string,"status_history": (string)[],"status_source": string,"strength_lifts": (string)[],"target_adjustments": NonNullable<Json>,"test_date": string | null,"trained_last_month": boolean,"training_status": string,"updated_at": string | null,"user_id": string
+                    "available_days": (number)[],"disliked_exercise_ids": (string)[],"e1rm_seeds": NonNullable<Json>,"equipment": (string)[],"goal": string,"increments": NonNullable<Json>,"lifestyle": string,"lifting_time": string | null,"max_lift_days": number | null,"priority": string,"rep_variation": string,"session_minutes": number,"specialization_muscles": (string)[],"split_style": string,"status_history": (string)[],"status_source": string,"strength_lifts": (string)[],"target_adjustments": NonNullable<Json>,"test_date": string | null,"trained_last_month": boolean,"training_status": string,"updated_at": string | null,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "available_days": (number)[],"disliked_exercise_ids"?: (string)[],"e1rm_seeds"?: NonNullable<Json>,"equipment"?: (string)[],"goal": string,"increments"?: NonNullable<Json>,"lifestyle"?: string,"max_lift_days"?: number | null,"priority"?: string,"rep_variation"?: string,"session_minutes"?: number,"specialization_muscles"?: (string)[],"split_style"?: string,"status_history"?: (string)[],"status_source"?: string,"strength_lifts"?: (string)[],"target_adjustments"?: NonNullable<Json>,"test_date"?: string | null,"trained_last_month"?: boolean,"training_status": string,"updated_at"?: string | null,"user_id": string
+                    "available_days": (number)[],"disliked_exercise_ids"?: (string)[],"e1rm_seeds"?: NonNullable<Json>,"equipment"?: (string)[],"goal": string,"increments"?: NonNullable<Json>,"lifestyle"?: string,"lifting_time"?: string | null,"max_lift_days"?: number | null,"priority"?: string,"rep_variation"?: string,"session_minutes"?: number,"specialization_muscles"?: (string)[],"split_style"?: string,"status_history"?: (string)[],"status_source"?: string,"strength_lifts"?: (string)[],"target_adjustments"?: NonNullable<Json>,"test_date"?: string | null,"trained_last_month"?: boolean,"training_status": string,"updated_at"?: string | null,"user_id": string
                   }
                   Update: {
-                    "available_days"?: (number)[],"disliked_exercise_ids"?: (string)[],"e1rm_seeds"?: NonNullable<Json>,"equipment"?: (string)[],"goal"?: string,"increments"?: NonNullable<Json>,"lifestyle"?: string,"max_lift_days"?: number | null,"priority"?: string,"rep_variation"?: string,"session_minutes"?: number,"specialization_muscles"?: (string)[],"split_style"?: string,"status_history"?: (string)[],"status_source"?: string,"strength_lifts"?: (string)[],"target_adjustments"?: NonNullable<Json>,"test_date"?: string | null,"trained_last_month"?: boolean,"training_status"?: string,"updated_at"?: string | null,"user_id"?: string
+                    "available_days"?: (number)[],"disliked_exercise_ids"?: (string)[],"e1rm_seeds"?: NonNullable<Json>,"equipment"?: (string)[],"goal"?: string,"increments"?: NonNullable<Json>,"lifestyle"?: string,"lifting_time"?: string | null,"max_lift_days"?: number | null,"priority"?: string,"rep_variation"?: string,"session_minutes"?: number,"specialization_muscles"?: (string)[],"split_style"?: string,"status_history"?: (string)[],"status_source"?: string,"strength_lifts"?: (string)[],"target_adjustments"?: NonNullable<Json>,"test_date"?: string | null,"trained_last_month"?: boolean,"training_status"?: string,"updated_at"?: string | null,"user_id"?: string
                   }
                   Relationships: [
                     
@@ -439,6 +439,9 @@ isOneToOne: false
 { Args: Record<PropertyKey, never>; Returns: {
               "display_name": string,"email": string,"joined": string,"last_active": string,"onboarded": boolean,"role": string,"user_id": string
             }[]
+                           },
+"apply_plan_writes":
+{ Args: { "p": Json }; Returns: Json
                            },
 "admin_remove_user":
 { Args: { "p_email": string }; Returns: undefined

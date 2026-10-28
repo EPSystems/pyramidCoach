@@ -1,7 +1,7 @@
 // Day placement around sports (Section 6.5). Rules: T-SCH-02…05, S-03.
 import { loadsLower, regionsOverlap, TEMPLATES, type Region } from './split';
 import { isHardIntensity, isLegHeavyHard, sportsOnDay } from './sports';
-import type { DayPlacement, Goal, ScheduleResult, UserSport } from './types';
+import type { DayPlacement, Goal, ScheduleResult, TimeOfDay, UserSport } from './types';
 import { combinations, variance } from './util';
 import { createLogger } from '@/lib/log';
 
@@ -15,10 +15,26 @@ export interface ScheduleInput {
   templates: string[]; // split session order
   sports: UserSport[];
   goal: Goal;
+  /** Usual lifting time; null/undefined = unknown. */
+  liftingTime?: TimeOfDay | null;
+}
+
+const TIME_RANK: Record<TimeOfDay, number> = { morning: 0, midday: 1, evening: 2 };
+
+/**
+ * T-SCH-03: is a same-day sport session done before (or too close to) lifting?
+ * With the lifting time unknown, only a morning sport counts as "before" (DECISIONS 21).
+ * With both known: an earlier slot is before lifting; the same slot is too close to keep 3 h apart; a later slot is fine.
+ */
+export function sportBeforeLifting(sportTime: TimeOfDay | null | undefined, liftingTime: TimeOfDay | null | undefined): 'before' | 'close' | null {
+  if (!sportTime) return null;
+  if (!liftingTime) return sportTime === 'morning' ? 'before' : null;
+  const d = TIME_RANK[sportTime] - TIME_RANK[liftingTime];
+  return d < 0 ? 'before' : d === 0 ? 'close' : null;
 }
 
 /** Score one candidate placement. Lower is better. */
-export function scorePlacement(placements: DayPlacement[], sports: UserSport[], goal: Goal): ScheduleResult {
+export function scorePlacement(placements: DayPlacement[], sports: UserSport[], goal: Goal, liftingTime?: TimeOfDay | null): ScheduleResult {
   const penalties: ScheduleResult['penalties'] = [];
   const add = (rule: string, points: number, detail: string) => penalties.push({ rule, points, detail });
   const byDay = new Map(placements.map((p) => [p.weekday, p]));
@@ -42,7 +58,9 @@ export function scorePlacement(placements: DayPlacement[], sports: UserSport[], 
     for (const s of today) {
       if (s.intensity === 'hard' || s.intensity === 'match') add('T-SCH-03', 4, `Lifting on the same day as hard ${s.name}`);
       else if (s.intensity === 'moderate') add('T-SCH-03', 2, `Lifting on the same day as ${s.name}`);
-      if (s.timeOfDay === 'morning') add('T-SCH-03', 3, `${s.name} is in the morning, before lifting`);
+      const order = sportBeforeLifting(s.timeOfDay, liftingTime);
+      if (order === 'before') add('T-SCH-03', 3, liftingTime ? `${s.name} is in the ${s.timeOfDay}, before your ${liftingTime} lifting` : `${s.name} is in the morning, before lifting`);
+      else if (order === 'close') add('T-SCH-03', 3, `${s.name} is in the ${s.timeOfDay}, within a few hours of lifting`);
     }
     const prev = byDay.get(prevDay(p.weekday));
     if (prev) {
@@ -92,7 +110,7 @@ export function placeSessions(input: ScheduleInput): ScheduleResult {
     for (let rot = 0; rot < k; rot++) {
       const order = [...input.templates.slice(rot), ...input.templates.slice(0, rot)];
       const placements = combo.map((d, i) => ({ weekday: d, templateKey: order[i] }));
-      const res = scorePlacement(placements, input.sports, input.goal);
+      const res = scorePlacement(placements, input.sports, input.goal, input.liftingTime);
       const tie = [...combo, rot];
       if (!best || res.score < best.score - 1e-9 || (Math.abs(res.score - best.score) < 1e-9 && lexLess(tie, best.tie))) {
         best = { ...res, tie };

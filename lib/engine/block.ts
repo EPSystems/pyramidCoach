@@ -4,6 +4,7 @@ import { bestRecentE1rm } from './e1rm';
 import { distribute, estimateMinutes, orderSession, sessionMuscleSets, type WorkExercise, type WorkSession } from './distribute';
 import { formatRx, isCompound, prescribe, rangeLevel, restFor } from './prescription';
 import { suggestNextSession } from './progression';
+import { planKey } from './carryover';
 import { placeSessions } from './schedule';
 import { createLogger } from '@/lib/log';
 import { painfulMuscles, selectForSlot, selectMainLift, type SelectionContext } from './selection';
@@ -179,7 +180,8 @@ export function generateBlock(input: BlockInput): BlockPlan {
   const avail = [...new Set(input.availableDays)].filter((d) => d >= 1 && d <= 7).sort((a, b) => a - b);
   const userCap = input.maxLiftDays ?? 5;
   let kMax = Math.min(5, avail.length, userCap);
-  if (!strength && input.sessionMinutes <= 45 && (input.maxLiftDays ?? 0) >= 6 && avail.length >= 6) kMax = 6;
+  // 6 days only when the user allows it and sessions are short. Strength uses ULF6, which keeps the main-lift slots (T-FRQ-03).
+  if (input.sessionMinutes <= 45 && (input.maxLiftDays ?? 0) >= 6 && avail.length >= 6) kMax = 6;
   let kMin = Math.min(FREQUENCY.liftDays.min, kMax);
   if (input.status !== 'novice' && avail.length >= 3) kMin = Math.min(3, kMax);
   if (kMax < 1) {
@@ -240,7 +242,7 @@ export function generateBlock(input: BlockInput): BlockPlan {
   });
 
   // ---------- Day placement ----------
-  const schedule = placeSessions({ availableDays: avail, templates: chosenSplit.split.templates, sports: input.sports, goal: input.goal });
+  const schedule = placeSessions({ availableDays: avail, templates: chosenSplit.split.templates, sports: input.sports, goal: input.goal, liftingTime: input.liftingTime });
   if (schedule.penalties.some((p) => p.rule === 'T-SCH-02')) {
     warnings.push({ code: 'NO_REST_DAY', message: 'Your week has no full rest day. Consider freeing one day.', ruleIds: ['T-SCH-02'] });
   }
@@ -298,6 +300,7 @@ export function generateBlock(input: BlockInput): BlockPlan {
     return e1rmCache.get(ex.id)!;
   };
 
+  const materialiseFrom = input.materialiseFrom && input.materialiseFrom < input.today ? input.materialiseFrom : input.today;
   const sessions: PlannedSession[] = [];
   const weeklyTargets: BlockPlan['weeklyTargets'] = [];
   let weekCache: ReturnType<typeof buildWeek> = chosen;
@@ -314,8 +317,12 @@ export function generateBlock(input: BlockInput): BlockPlan {
     schedule.placements.forEach((pl, order) => {
       const base = weekCache.sessions[sessionForPlacement[order]];
       const date = addDays(startsOn, w * 7 + (pl.weekday - 1));
-      if (date < input.today) return;
-      sessions.push(materialiseSession(base, { date, weekIndex: w, orderInWeek: order, intro, kind, weeks, ctx, e1rmFor }));
+      if (date < materialiseFrom) return;
+      const occurrence = schedule.placements.slice(0, order).filter((x) => x.templateKey === pl.templateKey).length;
+      sessions.push({
+        ...materialiseSession(base, { date, weekIndex: w, orderInWeek: order, intro, kind, weeks, ctx, e1rmFor }),
+        planKey: planKey(date, pl.templateKey, occurrence),
+      });
     });
   }
 
