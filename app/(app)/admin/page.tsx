@@ -3,27 +3,52 @@ import { notFound } from 'next/navigation';
 import { requireOnboarded } from '@/lib/server/context';
 import { PageHeader } from '@/components/app/bits';
 import { prettyDate } from '@/lib/utils/dates';
+import { createLogger } from '@/lib/log';
+import type { MuscleId } from '@/lib/engine/types';
 import { AdminClient } from './client';
 
 export const metadata: Metadata = { title: 'Admin' };
 
+const log = createLogger('admin/page');
+
 export default async function AdminPage() {
   const ctx = await requireOnboarded();
-  if (!ctx.isOwner) notFound();
+  if (!ctx.isAdmin) notFound();
   const { supabase } = ctx;
-  const [{ data: users }, { data: rules }, { data: sports }, { data: exercises }] = await Promise.all([
+  const [usersRes, rulesRes, sportsRes, exercisesRes] = await Promise.all([
     supabase.rpc('admin_list_users'),
     supabase.from('rule_sources').select('*').order('id'),
     supabase.from('sports').select('id, name, lower_body_load, upper_body_load, eccentric_impact, conditioning').is('owner_user_id', null).order('name'),
-    supabase.from('exercises').select('id, name, cues, mistakes').is('owner_user_id', null).order('name'),
+    supabase.from('exercises').select('id, name, cues, mistakes, long_length_bias, axial_load, impact_lower_body, unilateral, default_increment_kg, exercise_muscles(muscle_id, role)').is('owner_user_id', null).order('name'),
   ]);
+  // An empty list would read as "no users"; a failed read must say so instead.
+  const { data: users, error: usersError } = log.db('rpc admin_list_users', usersRes);
+  const { data: rules } = log.db('select rule_sources', rulesRes);
+  const { data: sports } = log.db('select sports (global)', sportsRes);
+  const { data: exercises } = log.db('select exercises (global)', exercisesRes);
   return (
     <div className="mx-auto max-w-5xl">
       <PageHeader kicker="Owner" title="Admin" />
       <div className="space-y-4 px-4 sm:px-6 lg:px-8">
         <AdminClient
-          users={(users ?? []).map((u) => ({ email: u.email ?? '', name: u.display_name ?? '', role: u.role, joined: u.joined ? prettyDate(u.joined.slice(0, 10)) : '-', lastActive: u.last_active ? prettyDate(u.last_active.slice(0, 10)) : '-', onboarded: u.onboarded }))}
-          exercises={(exercises ?? []).map((e) => ({ id: e.id, name: e.name, cues: e.cues, mistakes: e.mistakes }))}
+          isOwner={ctx.isOwner}
+          usersError={usersError ? 'Could not load the user list. Reload the page to try again.' : null}
+          users={(users ?? []).map((u) => ({ id: u.user_id, email: u.email ?? '', name: u.display_name ?? '', role: u.role, joined: u.joined ? prettyDate(u.joined.slice(0, 10)) : '-', lastActive: u.last_active ? prettyDate(u.last_active.slice(0, 10)) : '-', onboarded: u.onboarded }))}
+          exercises={(exercises ?? []).map((e) => ({
+            id: e.id,
+            name: e.name,
+            cues: e.cues,
+            mistakes: e.mistakes,
+            traits: {
+              primary: e.exercise_muscles.filter((m) => m.role === 'primary' && m.muscle_id).map((m) => m.muscle_id as MuscleId),
+              secondary: e.exercise_muscles.filter((m) => m.role === 'secondary' && m.muscle_id).map((m) => m.muscle_id as MuscleId),
+              long: !!e.long_length_bias,
+              axial: !!e.axial_load,
+              impact: !!e.impact_lower_body,
+              unilateral: !!e.unilateral,
+              increment: e.default_increment_kg != null ? String(e.default_increment_kg) : '',
+            },
+          }))}
         />
         <section className="bg-card rounded-2xl border p-5">
           <h2 className="font-display text-2xl font-bold uppercase">Sport catalog</h2>

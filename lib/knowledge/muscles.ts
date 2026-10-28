@@ -35,6 +35,17 @@ export const MUSCLE_SHORT: Record<MuscleId, string> = {
   abs: 'Abs', forearms: 'Forearms', traps: 'Traps', erectors: 'Lower back', adductors: 'Adductors',
 };
 
+/**
+ * Untracked muscles have no weekly target of their own (T-VOL-05 counts only the tracked list). The body map points each
+ * to the tracked group whose work trains it most, so the detail sheet can say where its volume comes from. Abs: none.
+ */
+export const INDIRECT_VIA: Partial<Record<MuscleId, { muscle: MuscleId; how: string }>> = {
+  traps: { muscle: 'back', how: 'rows, pulls and deadlifts' },
+  forearms: { muscle: 'biceps', how: 'curls, rows and pulls (grip)' },
+  erectors: { muscle: 'hamstrings', how: 'hinges, squats and rows' },
+  adductors: { muscle: 'quads', how: 'squats, lunges and deadlifts' },
+};
+
 export const PATTERN_SEEDS: { id: Pattern; name: string }[] = [
   { id: 'squat', name: 'Squat' },
   { id: 'hinge', name: 'Hip hinge' },

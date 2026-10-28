@@ -28,9 +28,9 @@ function Badge({ n }: { n: number }) {
   return <span className="bg-volt text-volt-ink num ml-auto grid min-w-5 place-items-center rounded-full px-1.5 text-[0.7rem] font-bold">{n}</span>;
 }
 
-export function Sidebar({ proposals, isOwner }: { proposals: number; isOwner: boolean }) {
+export function Sidebar({ proposals, showAdmin }: { proposals: number; showAdmin: boolean }) {
   const path = usePathname();
-  const items = [...MAIN, ...MORE, ...(isOwner ? [{ href: '/admin', label: 'Admin', icon: Shield }] : [])];
+  const items = [...MAIN, ...MORE, ...(showAdmin ? [{ href: '/admin', label: 'Admin', icon: Shield }] : [])];
   return (
     <aside className="bg-card/60 sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r px-3 py-5 backdrop-blur lg:flex">
       <Link href="/today" className="px-2">
@@ -61,7 +61,7 @@ export function Sidebar({ proposals, isOwner }: { proposals: number; isOwner: bo
   );
 }
 
-export function BottomNav({ proposals, isOwner }: { proposals: number; isOwner: boolean }) {
+export function BottomNav({ proposals, showAdmin }: { proposals: number; showAdmin: boolean }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const moreActive = [...MORE, { href: '/admin' }].some((m) => path.startsWith(m.href));
@@ -91,7 +91,7 @@ export function BottomNav({ proposals, isOwner }: { proposals: number; isOwner: 
               <SheetTitle className="font-display text-2xl uppercase">More</SheetTitle>
             </SheetHeader>
             <div className="grid grid-cols-3 gap-2 px-4">
-              {[...MORE, ...(isOwner ? [{ href: '/admin', label: 'Admin', icon: Shield }] : [])].map((it) => {
+              {[...MORE, ...(showAdmin ? [{ href: '/admin', label: 'Admin', icon: Shield }] : [])].map((it) => {
                 const Icon = it.icon;
                 return (
                   <Link

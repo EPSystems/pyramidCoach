@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Download, LogOut, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { deleteAccount, deleteInjury, deleteSport, regenerateNow, saveInjury, saveSport, toggleSport, updateProfile, updateTraining } from '@/lib/actions/settings';
+import { deleteAccount, deleteInjury, deleteSport, regenerateNow, saveInjury, saveSport, toggleSport, updateProfile, updateTheme, updateTraining } from '@/lib/actions/settings';
 import { signOut } from '@/lib/actions/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,7 @@ import { useTheme, type ThemePref } from '@/components/providers';
 import { ALL_MUSCLES, TRACKED_MUSCLES, type Equipment, type MainLift, type MuscleId, type SportIntensity, type TrackedMuscle } from '@/lib/engine/types';
 import { MUSCLE_SHORT } from '@/lib/knowledge/muscles';
 import { cn } from '@/lib/utils';
+import { fromDisplay, toDisplay } from '@/lib/utils/units';
 
 type Goal = 'lean_gain' | 'recomp' | 'strength' | 'fat_loss' | 'sport_support';
 interface Training {
@@ -67,6 +68,8 @@ interface Inj {
 const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const EQ: Equipment[] = ['barbell', 'dumbbell', 'machine', 'cable', 'bodyweight', 'band', 'sled'];
+const INC_KEYS = ['barbell', 'dumbbell', 'machine', 'cable'] as const;
+type IncKey = (typeof INC_KEYS)[number];
 
 function Section({ title, children, why }: { title: string; children: React.ReactNode; why?: string[] }) {
   return (
@@ -113,6 +116,9 @@ export function SettingsForms({ training, profile, userSports, catalog, injuries
   const [pending, start] = useTransition();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  // Weight jumps are stored in kg but shown and typed in the saved units; drafts keep half-typed input like "2.".
+  const incUnits = profile.units;
+  const [incText, setIncText] = useState(() => Object.fromEntries(INC_KEYS.map((k) => [k, String(toDisplay(training.increments[k], incUnits) ?? '')])) as Record<IncKey, string>);
   const dirtyT = JSON.stringify(t) !== JSON.stringify(training);
   const dirtyP = JSON.stringify(p) !== JSON.stringify(profile);
   const tz = typeof Intl !== 'undefined' ? Intl.supportedValuesOf?.('timeZone') ?? [p.timezone] : [p.timezone];
@@ -174,12 +180,20 @@ export function SettingsForms({ training, profile, userSports, catalog, injuries
             ))}
           </div>
         </Row>
-        <Row label="Smallest weight jumps (kg)">
+        <Row label={`Smallest weight jumps (${incUnits})`}>
           <div className="grid grid-cols-4 gap-2">
-            {(['barbell', 'dumbbell', 'machine', 'cable'] as const).map((k) => (
+            {INC_KEYS.map((k) => (
               <label key={k} className="text-muted-foreground space-y-1 text-xs capitalize">
                 {k}
-                <Input inputMode="decimal" value={t.increments[k]} onChange={(e) => setT({ ...t, increments: { ...t.increments, [k]: Number(e.target.value) || 0 } })} className="num text-foreground h-11" />
+                <Input
+                  inputMode="decimal"
+                  value={incText[k]}
+                  onChange={(e) => {
+                    setIncText({ ...incText, [k]: e.target.value });
+                    setT({ ...t, increments: { ...t.increments, [k]: fromDisplay(Number(e.target.value) || 0, incUnits) } });
+                  }}
+                  className="num text-foreground h-11"
+                />
               </label>
             ))}
           </div>
@@ -301,7 +315,11 @@ export function SettingsForms({ training, profile, userSports, catalog, injuries
             </Select>
           </Row>
           <Row label="Theme">
-            <Segmented label="Theme" value={theme} onChange={(v: ThemePref) => setTheme(v)} options={[{ value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }, { value: 'system', label: 'System' }]} />
+            <Segmented label="Theme" value={theme} onChange={(v: ThemePref) => {
+                // Applies at once (and caches locally); saving to the profile carries it to other devices.
+                setTheme(v);
+                void updateTheme(v).then((r) => !r.ok && toast.error('Theme applied here, but could not be saved to your account.'));
+              }} options={[{ value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }, { value: 'system', label: 'System' }]} />
           </Row>
         </div>
         <label className="flex items-center justify-between gap-3 text-sm">

@@ -3,9 +3,13 @@ import { STATUS_INFERENCE } from '@/lib/knowledge/constants';
 import type { LoggedSet, Status, StatusInference } from './types';
 import { daysBetween } from './util';
 
-/** T-STA-02: status from onboarding answers when the user is unsure. */
-export function statusFromYears(years: number): Status {
-  return years < 1 ? 'novice' : 'intermediate'; // never auto-assign advanced
+/**
+ * T-STA-02: status from onboarding answers when the user is unsure. Years alone never give advanced (T-STA-01: rate of
+ * progress decides); 5+ years plus heavy lifts that barely move month to month does.
+ */
+export function statusFromYears(years: number, heavyLiftsStalled = false): Status {
+  if (years < 1) return 'novice';
+  return years >= 5 && heavyLiftsStalled ? 'advanced' : 'intermediate';
 }
 
 export function inferTrainingStatus(h: { sets: LoggedSet[]; today: string; anchorExerciseIds: string[] }): StatusInference {

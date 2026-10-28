@@ -1,6 +1,6 @@
 // Exercise selection (Section 6.7). Rules: T-SEL-02…08, T-SEL-07.
 import type { Slot } from './split';
-import type { Equipment, ExerciseDef, Injury, MainLift, MuscleId, SlotTag } from './types';
+import type { Equipment, ExerciseDef, Injury, MainLift, MuscleId, Pattern, SlotTag } from './types';
 
 export interface SelectionContext {
   exercises: ExerciseDef[];
@@ -29,6 +29,17 @@ export function painfulMuscles(injuries: Injury[]): MuscleId[] {
 
 export function isPrimary(ex: ExerciseDef, m: MuscleId): boolean {
   return ex.muscles.some((x) => x.muscle === m && x.role === 'primary');
+}
+
+/**
+ * T-SEL-08 beyond selection: a cue on exercises that mainly train an area in rehab (lighter loads, higher reps, short of
+ * pain) or with a logged niggle (keep it pain-free). Rehab wins over niggle; resolved injuries add nothing.
+ */
+export function injuryNote(ex: ExerciseDef, injuries: Injury[]): string | null {
+  const hit = injuries.filter((i) => i.status !== 'resolved' && i.muscleId && isPrimary(ex, i.muscleId));
+  if (hit.some((i) => i.status === 'rehab')) return 'Rehab area: lighter load and higher reps (12–20), stop well short of pain';
+  if (hit.some((i) => i.severity === 'niggle')) return 'Niggle here: keep every rep pain-free; swap or skip it if it hurts';
+  return null;
 }
 
 export function hasEquipment(ex: ExerciseDef, equipment: Equipment[]): boolean {
@@ -130,6 +141,49 @@ export const ISOLATION_TAG_FOR: Partial<Record<MuscleId, SlotTag[]>> = {
   glutes: ['hip_ext'],
   calves: ['calf'],
 };
+
+/** Slot tags a custom exercise gets from its pattern. Isolation, carry and core also take a tag per primary muscle. */
+const PATTERN_TAGS: Record<Pattern, SlotTag[]> = {
+  squat: ['squat_machine'],
+  hinge: ['hinge_rdl'],
+  vertical_pull: ['pull_vertical'],
+  vertical_push: ['press_vertical'],
+  horizontal_pull: ['row_extension', 'row_flared'],
+  horizontal_push: ['press_flat'],
+  hip_extension: ['hip_ext'],
+  pullover: ['pullover'],
+  upright_row: ['lat_raise'],
+  fly: ['chest_iso'],
+  isolation: [],
+  carry: ['carry'],
+  core: ['abs'],
+};
+
+/** Isolation slot per primary muscle. Back isolation (straight-arm work) does the pullover job. */
+const MUSCLE_ISO_TAG: Record<MuscleId, SlotTag> = {
+  chest: 'chest_iso',
+  back: 'pullover',
+  front_delts: 'front_raise',
+  side_delts: 'lat_raise',
+  rear_delts: 'rear_delt',
+  biceps: 'biceps_iso',
+  triceps: 'triceps_iso',
+  quads: 'leg_ext',
+  hamstrings: 'leg_curl',
+  glutes: 'hip_ext',
+  calves: 'calf',
+  abs: 'abs',
+  forearms: 'forearms',
+  traps: 'traps',
+  erectors: 'erectors',
+  adductors: 'adductors',
+};
+
+/** Slot tags for a user-made exercise, so the planner and generator can pick it like a seeded one. */
+export function deriveSlotTags(pattern: Pattern, primary: MuscleId[]): SlotTag[] {
+  const perMuscle = pattern === 'isolation' || pattern === 'carry' || pattern === 'core' ? primary.map((m) => MUSCLE_ISO_TAG[m]) : [];
+  return [...new Set([...PATTERN_TAGS[pattern], ...perMuscle])];
+}
 
 /** Substitutions for the logger's Swap exercise (6.15): same primary muscle, feasible. */
 export function substitutionsFor(ex: ExerciseDef, ctx: Pick<SelectionContext, 'exercises' | 'equipment' | 'injuries' | 'disliked'>): ExerciseDef[] {

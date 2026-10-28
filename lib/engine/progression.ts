@@ -1,7 +1,7 @@
 // Autoregulated double progression (Section 6.10). Rules: T-PRG-01…06.
 import { PROGRESSION } from '@/lib/knowledge/constants';
 import { e1rmToLoad } from './e1rm';
-import type { ExerciseHistory, Prescription, SessionSuggestion, SetContext, SetSuggestion } from './types';
+import type { ExerciseHistory, Prescription, SessionSuggestion, SetContext, SetSuggestion, Status } from './types';
 import { roundDownToStep, roundToStep, roundUpToStep } from './util';
 
 /** Called after each logged set: what should the next set look like? */
@@ -61,7 +61,16 @@ export function suggestNextSession(
     }
     return { load: roundToStep(first.load + inc, history.increment), repsTarget: rx.repMin + 1, ruleIds: ['T-PRG-04'] };
   }
-  return { load: first.load, repsTarget: Math.min(rx.repMax, first.reps + 1), ruleIds: ['T-PRG-02'] };
+  const keep: SessionSuggestion = { load: first.load, repsTarget: Math.min(rx.repMax, first.reps + 1), ruleIds: ['T-PRG-02'] };
+  const pace = history.status ? loadPace(history.exposures, history.status) : null;
+  if (pace?.stalled) {
+    return {
+      ...keep,
+      ruleIds: [...keep.ruleIds, 'T-PRG-06'],
+      hint: `${pace.sessions} sessions at this load. ${STATUS_LABEL[history.status!]} lifters usually add load about every ${pace.expected} sessions: make sure set 1 really reaches ${rx.repMax} reps at ${rx.rirMax} RIR.`,
+    };
+  }
+  return keep;
 }
 
 /** T-PRG-05: “Feeling strong +1 step” / “Feeling flat −1 step”. */
@@ -72,3 +81,28 @@ export function nudgeLoad(load: number | null, increment: number, dir: 1 | -1): 
 
 /** T-PRG-06 expected sessions between load increases. */
 export const EXPECTED_SESSIONS_PER_LOAD_JUMP = { novice: 2.5, intermediate: 5, advanced: 10 } as const;
+
+/** APP: flag a slow stretch only at twice the typical pace; single flat sessions are normal (T-PRG-05). */
+export const LOAD_PACE_STALL_FACTOR = 2;
+
+const STATUS_LABEL: Record<Status, string> = { novice: 'Novice', intermediate: 'Intermediate', advanced: 'Advanced' };
+
+/** Exposures in a row, newest backwards, at the current first-set load (since the load last went up). */
+export function sessionsAtLoad(exposures: ExerciseHistory['exposures']): number {
+  let n = 0;
+  for (let i = exposures.length - 1; i >= 0; i--) {
+    const cur = exposures[i].sets[0]?.load;
+    if (cur == null) break;
+    n++;
+    const prev = exposures[i - 1]?.sets[0]?.load;
+    if (prev == null || cur > prev) break;
+  }
+  return n;
+}
+
+/** T-PRG-06: is this exercise's load rising at roughly the pace expected for the lifter's status? */
+export function loadPace(exposures: ExerciseHistory['exposures'], status: Status): { sessions: number; expected: number; stalled: boolean } {
+  const expected = EXPECTED_SESSIONS_PER_LOAD_JUMP[status];
+  const sessions = sessionsAtLoad(exposures);
+  return { sessions, expected, stalled: sessions >= Math.ceil(expected * LOAD_PACE_STALL_FACTOR) };
+}

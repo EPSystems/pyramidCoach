@@ -146,21 +146,25 @@ export function BodyweightChart({ data, unit, hideNumbers }: { data: BwPoint[]; 
 }
 
 /** Sessions done vs planned per week. */
-export function AdherenceBars({ data }: { data: { week: string; done: number; planned: number }[] }) {
+export function AdherenceBars({ data, bucket = 'week' }: { data: { week: string; done: number; planned: number }[]; bucket?: 'week' | 'month' }) {
+  const title = (d: string) => (bucket === 'month' ? new Date(`${d}T00:00:00Z`).toLocaleDateString(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' }) : `Week of ${prettyDate(d)}`);
+  const tick = (d: string) => (bucket === 'month' ? new Date(`${d}T00:00:00Z`).toLocaleDateString(undefined, { month: 'short', timeZone: 'UTC' }) : prettyDate(d, { weekday: false }));
+  // Planned and done bars overlap (barGap = −barSize); thinner bars once there are many buckets.
+  const barSize = data.length > 16 ? 6 : 14;
   return (
     <div>
       <div className="h-40" role="img" aria-label="Sessions done versus planned per week">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -24 }} barGap={-14} barCategoryGap="30%">
+          <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -24 }} barGap={-barSize} barCategoryGap="30%">
             {GRID}
-            <XAxis dataKey="week" {...AXIS} tickFormatter={(v: string) => prettyDate(v, { weekday: false })} />
+            <XAxis dataKey="week" {...AXIS} tickFormatter={tick} minTickGap={16} />
             <YAxis {...AXIS} allowDecimals={false} width={36} />
             <Tooltip
               cursor={{ fill: 'var(--muted)', opacity: 0.4 }}
               content={({ active, payload }) =>
                 active && payload?.length ? (
                   <TipBox
-                    title={`Week of ${prettyDate(String(payload[0].payload.week))}`}
+                    title={title(String(payload[0].payload.week))}
                     rows={[
                       { label: 'Done', value: String(payload[0].payload.done), color: 'var(--chart-1)' },
                       { label: 'Planned', value: String(payload[0].payload.planned) },
@@ -169,8 +173,8 @@ export function AdherenceBars({ data }: { data: { week: string; done: number; pl
                 ) : null
               }
             />
-            <Bar dataKey="planned" fill="var(--muted)" radius={[4, 4, 0, 0]} barSize={14} isAnimationActive={false} />
-            <Bar dataKey="done" fill="var(--chart-1)" radius={[4, 4, 0, 0]} barSize={14} isAnimationActive={false} />
+            <Bar dataKey="planned" fill="var(--muted)" radius={[4, 4, 0, 0]} barSize={barSize} isAnimationActive={false} />
+            <Bar dataKey="done" fill="var(--chart-1)" radius={[4, 4, 0, 0]} barSize={barSize} isAnimationActive={false} />
           </BarChart>
         </ResponsiveContainer>
       </div>
