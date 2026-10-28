@@ -15,7 +15,7 @@ const STALL_LOOKBACK_DAYS = 182;
 export const VOLUME_WEEKS = 8;
 
 /**
- * Everything the Progress page reads, for a history range (DECISIONS 44). Sets and weigh-ins are paged past
+ * Everything the Progress page reads, for a history range (DECISIONS 55). Sets and weigh-ins are paged past
  * PostgREST's 1000-row cap. Sets are fetched from the earlier of the range start and the stall lookback.
  */
 export async function loadProgressData(supabase: Supa, userId: string, today: string, range: ProgressRange) {

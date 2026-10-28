@@ -1,4 +1,5 @@
 import { BottomNav, Sidebar } from '@/components/app/nav';
+import { OfflineBanner } from '@/components/app/offline-banner';
 import { ThemeSync } from '@/components/app/theme-sync';
 import type { ThemePref } from '@/components/providers';
 import { requireOnboarded } from '@/lib/server/context';
@@ -20,7 +21,10 @@ export default async function AppLayout({ children }: LayoutProps<'/'>) {
     <div className="relative z-10 flex min-h-dvh">
       <ThemeSync theme={(ctx.profile.theme as ThemePref | null) ?? null} />
       <Sidebar proposals={count ?? 0} showAdmin={ctx.isAdmin} />
-      <main className="min-w-0 flex-1 pb-24 lg:pb-10">{children}</main>
+      <main className="min-w-0 flex-1 pb-24 lg:pb-10">
+        <OfflineBanner />
+        {children}
+      </main>
       <BottomNav proposals={count ?? 0} showAdmin={ctx.isAdmin} />
     </div>
   );

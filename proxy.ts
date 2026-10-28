@@ -48,6 +48,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // The manifest is public and fetched on every page load; skip the auth round-trip for it.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|icons/|.*\.(?:svg|png|jpg|jpeg|webp|ico)$).*)'],
+  // The manifest, service worker and offline page are public static files; skip the auth round-trip for them.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|offline.html|icons/|.*\.(?:svg|png|jpg|jpeg|webp|ico)$).*)'],
 };

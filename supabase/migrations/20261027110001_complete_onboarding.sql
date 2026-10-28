@@ -1,4 +1,4 @@
--- Onboarding data writes in one transaction (DECISIONS #37). Security invoker, so RLS applies to every statement.
+-- Onboarding data writes in one transaction (DECISIONS #68). Security invoker, so RLS applies to every statement.
 -- The caller (lib/actions/onboarding.ts) validates and derives the rows (lib/onboarding/derive.ts), then builds the
 -- first plan and nutrition targets and only then sets profiles.onboarded_at, so a failed build can be resubmitted.
 create or replace function public.complete_onboarding(p jsonb)

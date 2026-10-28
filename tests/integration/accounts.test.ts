@@ -96,7 +96,7 @@ async function seedEverything(uid: string) {
   ok(await admin.from('proposals').insert({ user_id: uid, kind: 'standard_deload', title: 'Test', rationale: 'Test', rule_ids: [], payload: {} }));
 }
 
-describe('Account deletion cascades (DECISIONS 39)', () => {
+describe('Account deletion cascades (DECISIONS 74)', () => {
   it('every foreign key to auth.users cascades (or nulls out)', async (ctx) => {
     if (!reachable) ctx.skip();
     const { data, error } = await admin.rpc('auth_user_fk_report');
@@ -127,7 +127,7 @@ describe('Account deletion cascades (DECISIONS 39)', () => {
   });
 });
 
-describe('Role management (DECISIONS 37)', () => {
+describe('Role management (DECISIONS 72)', () => {
   it('only the owner promotes and demotes admins; the owner role cannot change', async (ctx) => {
     if (!reachable) ctx.skip();
     const owner = await ownerClient();

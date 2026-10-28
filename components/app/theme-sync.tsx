@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useTheme, type ThemePref } from '@/components/providers';
 
 /**
- * Applies the theme saved on the profile (DECISIONS 40). localStorage stays the pre-paint cache, so a device that
+ * Applies the theme saved on the profile (DECISIONS 75). localStorage stays the pre-paint cache, so a device that
  * already knows the choice never flashes; a new device paints its cached/default theme once, then switches here.
  * Null means the user never picked one in Settings, so the device keeps its own choice.
  */

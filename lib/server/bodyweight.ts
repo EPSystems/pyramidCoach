@@ -73,7 +73,7 @@ export type WeekAvg = WeekAverage;
 /**
  * After a weigh-in: rebase the nutrition targets when the averaged bodyweight they use (mean of the last 7
  * weigh-ins) moved by at least NUTRITION.recomputeOnBodyweightKg. This is a base-target recompute only: it keeps
- * the accepted kcal offset and never touches the N-ADJ-03 cadence (DECISIONS 37). Never throws: the weigh-in is
+ * the accepted kcal offset and never touches the N-ADJ-03 cadence (DECISIONS 48). Never throws: the weigh-in is
  * already saved, and a failed refresh only means the targets catch up at the next recompute.
  */
 export async function refreshTargetsAfterWeighIn(supabase: Supa, userId: string): Promise<{ refreshed: boolean; kcal?: number }> {

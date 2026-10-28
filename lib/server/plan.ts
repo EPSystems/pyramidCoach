@@ -330,7 +330,7 @@ export interface RecomputeOptions {
   multiplier?: number;
   /**
    * The new `multiplier` rebases the targets (a lifestyle change) instead of being an N-ADJ-01 trend adjustment:
-   * it then leaves last_adjusted_on and initial_adjust_done alone (DECISIONS 40).
+   * it then leaves last_adjusted_on and initial_adjust_done alone (DECISIONS 93).
    */
   rebase?: boolean;
   /** An accepted calorie change (N-ADJ-02). Always counts as a trend adjustment and restarts the 14-day wait. */

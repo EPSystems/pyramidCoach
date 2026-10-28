@@ -114,7 +114,7 @@ export async function logWeighIn(kg: number, day?: string): Promise<Result<{ tar
   // The check-in is saved; a retry is idempotent (it takes the update branch above).
   const { error: pErr } = log.db('update profiles.bodyweight_kg', await supabase.from('profiles').update({ bodyweight_kg: kg }).eq('user_id', user.id), { userId: user.id });
   if (pErr) return fail(pErr.message);
-  // New bodyweight flows straight into the targets when it moves the averaged weight enough (DECISIONS 37).
+  // New bodyweight flows straight into the targets when it moves the averaged weight enough (DECISIONS 48).
   const { refreshed } = await refreshTargetsAfterWeighIn(supabase, user.id);
   revalidatePath('/', 'layout');
   return { ok: true, data: { targetsUpdated: refreshed } };
@@ -152,9 +152,17 @@ const LogSetInput = z.object({
   increment: z.number().positive(),
   /** Warm-up sets (T-WUP-01) have their own set_index sequence and never count toward volume, e1RM or PRs. */
   isWarmup: z.boolean().optional(),
+  /** Set by the offline queue (DECISIONS 97): the phone's day when the set was logged, which may be before it syncs. */
+  performedOn: z.iso.date().optional(),
 });
 
-/** Idempotent on (planned_exercise_id, is_warmup, set_index) (Section 11). Returns the next-set suggestion (6.10). */
+/** Days a queued set may be back-dated on replay; anything else falls back to today. */
+const MAX_BACKDATE_DAYS = 7;
+
+/**
+ * Idempotent on (planned_exercise_id, is_warmup, set_index) (Section 11), so the offline queue can replay a set that
+ * already reached the server. Returns the next-set suggestion (6.10).
+ */
 export async function logSet(raw: z.input<typeof LogSetInput>): Promise<Result<{ id: string; next: { load: number | null; repsTarget: number; ruleIds: string[] } }>> {
   const p = LogSetInput.safeParse(raw);
   if (!p.success) {
@@ -163,7 +171,8 @@ export async function logSet(raw: z.input<typeof LogSetInput>): Promise<Result<{
   }
   const d = p.data;
   const { supabase, user, today } = await userToday();
-  log.debug('logSet', { sessionId: d.sessionId, plannedExerciseId: d.plannedExerciseId, setIndex: d.setIndex });
+  const performedOn = d.performedOn && d.performedOn <= today && d.performedOn >= addDays(today, -MAX_BACKDATE_DAYS) ? d.performedOn : today;
+  log.debug('logSet', { sessionId: d.sessionId, plannedExerciseId: d.plannedExerciseId, setIndex: d.setIndex, replay: d.performedOn != null });
   const { data, error } = log.db('upsert logged_sets', await supabase
     .from('logged_sets')
     .upsert(
@@ -172,7 +181,7 @@ export async function logSet(raw: z.input<typeof LogSetInput>): Promise<Result<{
         session_id: d.sessionId,
         planned_exercise_id: d.plannedExerciseId,
         exercise_id: d.exerciseId,
-        performed_on: today,
+        performed_on: performedOn,
         set_index: d.setIndex,
         load_kg: d.loadKg,
         reps: d.reps,

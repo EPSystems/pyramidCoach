@@ -3,9 +3,12 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Check, ChevronDown, EllipsisVertical, Flame, Minus, Plus, Repeat2, SkipForward, StickyNote, Timer, TrendingDown, TrendingUp, Trophy, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, CloudOff, EllipsisVertical, Flame, Minus, Plus, Repeat2, SkipForward, StickyNote, Timer, TrendingDown, TrendingUp, Trophy, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { addSetToExercise, addSoreness, deleteSet, finishSession, logSet, saveExerciseNote, skipExercise, swapExercise } from '@/lib/actions/training';
+import { addSetToExercise, addSoreness, finishSession, saveExerciseNote, skipExercise, swapExercise } from '@/lib/actions/training';
+import { deleteSetOrDequeue, logSetOrQueue } from '@/lib/offline/log-set';
+import { flushOutbox, onOutboxChange, pendingSets } from '@/lib/offline/outbox';
+import { setKey } from '@/lib/offline/queue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -58,6 +61,8 @@ interface Row {
   reps: number;
   rir: number | null;
   logged: boolean;
+  /** Logged without a connection; waiting in the offline outbox. */
+  pending?: boolean;
 }
 
 const defaultRir = (rx: LoggerExercise['rx'], i: number) => Math.max(rx.rirMin, rx.rirMax - i);
@@ -144,6 +149,34 @@ export function Logger({
   const [rows, setRows] = useState<Record<string, Row[]>>(() => Object.fromEntries(exercises.map((e) => [e.plannedId + e.exerciseId, initRows(e)])));
   const [finishing, setFinishing] = useState(false);
   const router = useRouter();
+
+  // Sets logged offline live in the outbox until they sync: show them as logged (pending), and settle them as the outbox drains.
+  useEffect(() => {
+    const rowsKey = new Map(exercises.map((e) => [e.plannedId, e.plannedId + e.exerciseId]));
+    const plannedOf = new Map(exercises.map((e) => [e.plannedId + e.exerciseId, e.plannedId]));
+    const settle = (keys: Set<string>, p: Partial<Row>) =>
+      setRows((all) => Object.fromEntries(Object.entries(all).map(([k, rs]) => [k, rs.map((r, i) => (r.pending && keys.has(setKey(plannedOf.get(k) ?? '', i)) ? { ...r, ...p } : r))])));
+    void pendingSets(session.id).then((queued) => {
+      if (!queued.length) return;
+      setRows((all) => {
+        const next = { ...all };
+        for (const { input: q } of queued) {
+          if (q.isWarmup) continue;
+          const k = rowsKey.get(q.plannedExerciseId);
+          if (!k || !next[k]) continue;
+          const rs = [...next[k]];
+          while (rs.length <= q.setIndex) rs.push({ load: q.loadKg, reps: q.reps, rir: q.rir, logged: false });
+          rs[q.setIndex] = { load: q.loadKg, reps: q.reps, rir: q.rir, logged: true, pending: true };
+          next[k] = rs;
+        }
+        return next;
+      });
+    });
+    return onOutboxChange(({ synced, failed }) => {
+      if (synced.length) settle(new Set(synced), { pending: false });
+      if (failed.length) settle(new Set(failed.map((f) => f.key)), { pending: false, logged: false });
+    });
+  }, [session.id, exercises]);
 
   const totalSets = exercises.filter((e) => !e.skipped).reduce((a, e) => a + (rows[e.plannedId + e.exerciseId]?.length ?? 0), 0);
   const doneSets = exercises.reduce((a, e) => a + (rows[e.plannedId + e.exerciseId]?.filter((r) => r.logged).length ?? 0), 0);
@@ -267,7 +300,7 @@ function ExerciseCard({
   async function undoSet(i: number) {
     patch(i, { logged: false });
     // A thrown action (network drop, server crash) is treated like a failed result: revert and tell the user.
-    const res = await deleteSet(ex.plannedId, i).catch((e: unknown) => {
+    const res = await deleteSetOrDequeue(ex.plannedId, i).catch((e: unknown) => {
       log.error('deleteSet threw', { plannedExerciseId: ex.plannedId, setIndex: i, err: e });
       return { ok: false as const, error: 'Could not undo that set. Check your connection and try again.' };
     });
@@ -275,15 +308,16 @@ function ExerciseCard({
       log.warn('deleteSet failed', { plannedExerciseId: ex.plannedId, setIndex: i, error: res.error });
       patch(i, { logged: true });
       toast.error(res.error);
-    }
+    } else patch(i, { pending: false });
   }
 
   async function saveSet(i: number, r: Row) {
     patch(i, { logged: true });
     onLogged();
-    const res = await logSet({ sessionId, plannedExerciseId: ex.plannedId, exerciseId: ex.exerciseId, setIndex: i, loadKg: r.load, reps: r.reps, rir: r.rir, rx: ex.rx, increment: ex.increment }).catch((e: unknown) => {
+    // No connection: the set is queued on the phone (shown as pending) and synced later; see lib/offline.
+    const res = await logSetOrQueue({ sessionId, plannedExerciseId: ex.plannedId, exerciseId: ex.exerciseId, setIndex: i, loadKg: r.load, reps: r.reps, rir: r.rir, rx: ex.rx, increment: ex.increment }).catch((e: unknown) => {
       log.error('logSet threw', { sessionId, plannedExerciseId: ex.plannedId, setIndex: i, err: e });
-      return { ok: false as const, error: 'Could not save that set. Check your connection and try again.', data: undefined };
+      return { ok: false as const, error: 'Could not save that set. Check your connection and try again.' };
     });
     if (!res.ok) {
       log.warn('logSet failed', { sessionId, plannedExerciseId: ex.plannedId, setIndex: i, error: res.error });
@@ -291,7 +325,8 @@ function ExerciseCard({
       toast.error(res.error);
       return;
     }
-    const next = res.data!.next;
+    if (res.queued) patch(i, { pending: true });
+    const next = res.data.next;
     setRows((prev) =>
       prev.map((row, j) => {
         if (j <= i || row.logged) return row;
@@ -412,16 +447,22 @@ function ExerciseCard({
                 </button>
               </div>
             </div>
+            {r.pending && (
+              <span className="stamp text-muted-foreground order-3 inline-flex items-center gap-1 sm:order-2" title="Saved on this phone; syncs when you're back online">
+                <CloudOff className="size-3.5" /> Pending sync
+              </span>
+            )}
             <button
               type="button"
               onClick={() => void toggle(i)}
               disabled={skipped || saving.has(i)}
               aria-busy={saving.has(i)}
               aria-pressed={r.logged}
-              aria-label={r.logged ? `Undo set ${i + 1}` : `Log set ${i + 1}`}
+              aria-label={r.logged ? `Undo set ${i + 1}${r.pending ? ' (pending sync)' : ''}` : `Log set ${i + 1}`}
               className={cn(
                 'order-3 ml-auto grid size-12 shrink-0 place-items-center rounded-xl border-2 transition-all sm:order-2',
                 r.logged ? 'bg-volt text-volt-ink border-volt pop' : 'border-volt/60 text-volt hover:bg-volt/10',
+                r.pending && 'border-dashed opacity-80',
               )}
             >
               <Check className="size-6" strokeWidth={3} />
@@ -580,6 +621,29 @@ function WarmupRamp({ ex, sessionId, units, disabled }: { ex: LoggerExercise; se
     else inFlight.current.delete(i);
     setSaving(new Set(inFlight.current));
   };
+  // Warm-ups logged offline and still waiting in the outbox.
+  const [pendingIdx, setPendingIdx] = useState<ReadonlySet<number>>(new Set());
+  const markPending = (i: number, on: boolean) =>
+    setPendingIdx((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(i);
+      else next.delete(i);
+      return next;
+    });
+  useEffect(() => {
+    void pendingSets(sessionId).then((queued) => {
+      const mine = queued.filter((q) => q.input.isWarmup && q.input.plannedExerciseId === ex.plannedId).map((q) => q.input.setIndex);
+      if (!mine.length) return;
+      setDone((prev) => new Set([...prev, ...mine]));
+      setPendingIdx(new Set(mine));
+    });
+    return onOutboxChange(({ synced, failed }) => {
+      const key = (i: number) => setKey(ex.plannedId, i, true);
+      setPendingIdx((prev) => new Set([...prev].filter((i) => !synced.includes(key(i)) && !failed.some((f) => f.key === key(i)))));
+      const lost = ex.warmup.map((_, i) => i).filter((i) => failed.some((f) => f.key === key(i)));
+      if (lost.length) setDone((prev) => new Set([...prev].filter((i) => !lost.includes(i))));
+    });
+  }, [sessionId, ex.plannedId, ex.warmup]);
 
   async function toggle(i: number) {
     if (inFlight.current.has(i)) return;
@@ -587,14 +651,16 @@ function WarmupRamp({ ex, sessionId, units, disabled }: { ex: LoggerExercise; se
     const w = ex.warmup[i];
     const wasDone = done.has(i);
     mark(i, !wasDone);
+    // Offline-aware like working sets: queued on the phone without signal (lib/offline).
     const res = await (wasDone
-      ? deleteSet(ex.plannedId, i, true)
-      : logSet({ sessionId, plannedExerciseId: ex.plannedId, exerciseId: ex.exerciseId, setIndex: i, loadKg: w.load, reps: w.reps, rir: null, rx: ex.rx, increment: ex.increment, isWarmup: true })
+      ? deleteSetOrDequeue(ex.plannedId, i, true)
+      : logSetOrQueue({ sessionId, plannedExerciseId: ex.plannedId, exerciseId: ex.exerciseId, setIndex: i, loadKg: w.load, reps: w.reps, rir: null, rx: ex.rx, increment: ex.increment, isWarmup: true })
     ).catch((e: unknown) => {
       log.error('warm-up set threw', { plannedExerciseId: ex.plannedId, setIndex: i, err: e });
       return { ok: false as const, error: 'Could not save the warm-up set. Check your connection and try again.' };
     });
     markSaving(i, false);
+    if (res.ok) markPending(i, !wasDone && 'queued' in res && res.queued === true);
     if (!res.ok) {
       log.warn('warm-up set failed', { plannedExerciseId: ex.plannedId, setIndex: i, error: res.error });
       mark(i, wasDone);
@@ -624,8 +690,9 @@ function WarmupRamp({ ex, sessionId, units, disabled }: { ex: LoggerExercise; se
               disabled={disabled || saving.has(i)}
               aria-busy={saving.has(i)}
               aria-pressed={done.has(i)}
-              aria-label={done.has(i) ? `Undo warm-up set ${i + 1}` : `Log warm-up set ${i + 1}`}
-              className={cn('grid size-11 shrink-0 place-items-center rounded-lg border-2 transition-all', done.has(i) ? 'bg-warn border-warn text-background' : 'border-warn/60 text-warn hover:bg-warn/10')}
+              aria-label={done.has(i) ? `Undo warm-up set ${i + 1}${pendingIdx.has(i) ? ' (pending sync)' : ''}` : `Log warm-up set ${i + 1}`}
+              title={pendingIdx.has(i) ? "Saved on this phone; syncs when you're back online" : undefined}
+              className={cn('grid size-11 shrink-0 place-items-center rounded-lg border-2 transition-all', done.has(i) ? 'bg-warn border-warn text-background' : 'border-warn/60 text-warn hover:bg-warn/10', pendingIdx.has(i) && 'border-dashed opacity-80')}
             >
               <Check className="size-5" strokeWidth={3} />
             </button>
@@ -705,6 +772,8 @@ function FinishDialog({
           return;
         }
       }
+      // Sync any sets logged offline first, so the finished session includes them.
+      await flushOutbox();
       const r = await finishSession(session.id).catch((e: unknown) => {
         log.error('finishSession threw', { sessionId: session.id, err: e });
         return { ok: false as const, error: 'Could not finish the session. Check your connection and try again.' };

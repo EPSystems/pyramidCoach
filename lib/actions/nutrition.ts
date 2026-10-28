@@ -42,7 +42,7 @@ export async function updatePhase(raw: z.input<typeof PhaseInput>): Promise<{ ok
   // Same limits as the rate picker (allowedRatePcts): N-RAT-01 for loss, the status range for gain (N-RAT-02).
   const badRate = rateError(p.data.phase, settings.training_status as Status, p.data.ratePct);
   if (badRate) return { ok: false, error: badRate };
-  // N-PHS-02 (4:1) is guidance, not a block: starting a cut early is allowed, with a warning (DECISIONS 42).
+  // N-PHS-02 (4:1) is guidance, not a block: starting a cut early is allowed, with a warning (DECISIONS 53).
   const ratioWarning =
     p.data.phase === 'loss' && ns?.phase !== 'loss' ? cutRatioWarning((ns?.phase_history as PhaseSpan[] | undefined) ?? [], todayIn(profile.timezone)) : null;
   try {

@@ -6,6 +6,8 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: 'Pyramid',
     description: 'Evidence-based training and nutrition that plans, runs and adapts itself.',
     start_url: '/today',
+    // Same scope as the service worker (/sw.js, scope '/'), so every app page opens inside the installed PWA.
+    scope: '/',
     display: 'standalone',
     background_color: '#1a1b17',
     theme_color: '#1a1b17',

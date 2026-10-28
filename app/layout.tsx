@@ -3,6 +3,7 @@ import { Archivo, Big_Shoulders, JetBrains_Mono } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Providers } from '@/components/providers';
+import { ServiceWorker } from '@/components/app/service-worker';
 import './globals.css';
 
 const display = Big_Shoulders({ variable: '--font-display', subsets: ['latin'], weight: ['600', '700', '800'] });
@@ -41,6 +42,7 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
         <Providers>
           <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
           <Toaster position="top-center" richColors />
+          <ServiceWorker />
         </Providers>
       </body>
     </html>
