@@ -15,3 +15,9 @@ jobs:
         with: { version: 2.122.0 } # match the supabase devDependency; older CLIs reject newer config.toml keys
       - run: supabase start && supabase db reset
       - run: pnpm test:coverage
+      # e2e builds the app and serves it on :3100 against the local stack started above (playwright.config.ts).
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: playwright-traces, path: test-results/, retention-days: 7 }

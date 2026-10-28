@@ -23,6 +23,8 @@ export interface QueuedSetInput {
   rx: { repMin: number; repMax: number; rirMin: number; rirMax: number };
   increment: number;
   performedOn: string;
+  /** Warm-up sets (T-WUP-01) have their own set_index sequence on the server. */
+  isWarmup?: boolean;
 }
 
 export interface QueuedSet {
@@ -39,7 +41,9 @@ export interface SetStore {
 
 export type SendResult = { ok: true } | { ok: false; error: string };
 
-export const setKey = (plannedExerciseId: string, setIndex: number) => `${plannedExerciseId}:${setIndex}`;
+/** Mirrors the server's unique key (planned_exercise_id, is_warmup, set_index). */
+export const setKey = (plannedExerciseId: string, setIndex: number, isWarmup = false) => `${plannedExerciseId}:${isWarmup ? 'w' : ''}${setIndex}`;
+export const keyOf = (input: Pick<QueuedSetInput, 'plannedExerciseId' | 'setIndex' | 'isWarmup'>) => setKey(input.plannedExerciseId, input.setIndex, input.isWarmup);
 
 /** Local calendar day (YYYY-MM-DD) on the phone, i.e. the day the user is actually training. */
 export const localDay = (now: Date = new Date()) =>

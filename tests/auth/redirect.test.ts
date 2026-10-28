@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveOrigin, safeNext } from '@/lib/utils/redirect';
+import { loginRedirect, resolveOrigin, safeNext } from '@/lib/utils/redirect';
 
 const h = (entries: Record<string, string>) => new Headers(entries);
 
@@ -37,5 +37,21 @@ describe('resolveOrigin', () => {
   });
   it('ignores an invalid APP_URL', () => {
     expect(resolveOrigin('not a url', h({ host: 'pyramid-coach.vercel.app' }))).toBe('https://pyramid-coach.vercel.app');
+  });
+});
+
+describe('loginRedirect', () => {
+  it('carries the requested page as ?next=', () => {
+    expect(loginRedirect('/progress')).toBe('/login?next=%2Fprogress');
+    expect(loginRedirect('/session/abc', '?x=1')).toBe('/login?next=%2Fsession%2Fabc%3Fx%3D1');
+  });
+  it('adds nothing for the default page or the root', () => {
+    expect(loginRedirect('/today')).toBe('/login');
+    expect(loginRedirect('/')).toBe('/login');
+    expect(loginRedirect('/reset-password')).toBe('/login');
+  });
+  it('never carries an off-site target', () => {
+    expect(loginRedirect('//evil.com')).toBe('/login');
+    expect(loginRedirect('/\\evil.com')).toBe('/login');
   });
 });

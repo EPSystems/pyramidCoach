@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   flushQueue,
   isNetworkError,
+  keyOf,
   localDay,
   memoryStore,
   ordered,
@@ -34,6 +35,15 @@ const item = (setIndex: number, queuedAt: number, over: Partial<QueuedSetInput> 
 describe('offline queue', () => {
   it('keys sets by (planned exercise, set index), the server upsert key', () => {
     expect(setKey(PE, 2)).toBe(`${PE}:2`);
+  });
+
+  it('keeps warm-ups apart from working sets with the same index (server key includes is_warmup)', async () => {
+    expect(setKey(PE, 0, true)).not.toBe(setKey(PE, 0));
+    expect(keyOf(input(0, { isWarmup: true }))).toBe(setKey(PE, 0, true));
+    const s = memoryStore();
+    await s.put({ key: keyOf(input(0)), queuedAt: 1, input: input(0) });
+    await s.put({ key: keyOf(input(0, { isWarmup: true })), queuedAt: 2, input: input(0, { isWarmup: true }) });
+    expect(await s.all()).toHaveLength(2);
   });
 
   it('re-logging a queued set replaces it instead of duplicating', async () => {

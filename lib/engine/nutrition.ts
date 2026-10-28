@@ -1,7 +1,7 @@
 // Nutrition engine (Section 7). Rules: N-PHS-01, N-MNT-01…04, N-RAT-01…04, N-SPT-01…03, N-PRO-01/02, N-FAT-01, N-CHO-01, N-MAC-01.
 import { NUTRITION } from '@/lib/knowledge/constants';
 import type { Goal, Lifestyle, NutritionPhase, Sex, SportIntensity, Status, UserSport } from './types';
-import { clamp, lerp, round10, round5 } from './util';
+import { clamp, daysBetween, lerp, round10, round5 } from './util';
 import { createLogger } from '@/lib/log';
 
 const log = createLogger('engine/nutrition');
@@ -23,17 +23,41 @@ export function sportFactor(i: SportIntensity): number {
   return 0.5 * (f.moderate + f.vigorous);
 }
 
-/** N-SPT-03: average daily sport energy. */
-export function sportKcalPerDay(sports: Pick<UserSport, 'weekdays' | 'minutes' | 'intensity'>[], kg: number): number {
-  const weekly = sports.reduce((a, s) => a + s.weekdays.length * (s.minutes / 10) * sportFactor(s.intensity) * kg, 0);
-  return Math.round(weekly / 7);
+/** N-SPT-01: session RPE (1–10) → cardio factor: ≤4 light, ≤7 moderate, else vigorous. */
+function rpeFactor(rpe: number): number {
+  const f = NUTRITION.cardioKcalPerKgPer10Min;
+  return rpe <= 4 ? f.light : rpe <= 7 ? f.moderate : f.vigorous;
 }
 
 /** N-SPT-01: kcal for a single logged session from its session RPE (1–10). */
 export function sessionKcalFromRpe(minutes: number, rpe: number, kg: number): number {
-  const f = NUTRITION.cardioKcalPerKgPer10Min;
-  const factor = rpe <= 4 ? f.light : rpe <= 7 ? f.moderate : f.vigorous;
-  return Math.round((minutes / 10) * factor * kg);
+  return Math.round((minutes / 10) * rpeFactor(rpe) * kg);
+}
+
+export type SportForKcal = Pick<UserSport, 'weekdays' | 'minutes' | 'intensity'> & { sportId?: string };
+
+/** A logged sport session (sport_logs) as used for calorie calibration. */
+export interface SportLogForKcal {
+  sportId: string;
+  minutes: number;
+  rpe: number | null;
+}
+
+/**
+ * N-SPT-03: average daily sport energy. Frequency always comes from the weekly schedule; the energy of one
+ * session comes from the declared minutes × intensity or, once a sport has at least
+ * NUTRITION.sportCalibration.minLoggedSessions recent logs with a session RPE, from the mean of those logs (N-SPT-01).
+ */
+export function sportKcalPerDay(sports: SportForKcal[], kg: number, logs: SportLogForKcal[] = []): number {
+  const weekly = sports.reduce((a, s) => {
+    const rated = s.sportId ? logs.filter((l) => l.sportId === s.sportId && l.rpe != null && l.minutes > 0) : [];
+    const perSession =
+      rated.length >= NUTRITION.sportCalibration.minLoggedSessions
+        ? rated.reduce((b, l) => b + (l.minutes / 10) * rpeFactor(l.rpe!) * kg, 0) / rated.length
+        : (s.minutes / 10) * sportFactor(s.intensity) * kg;
+    return a + s.weekdays.length * perSession;
+  }, 0);
+  return Math.round(weekly / 7);
 }
 
 export interface NutritionInput {
@@ -44,7 +68,9 @@ export interface NutritionInput {
   phase: NutritionPhase;
   lifestyle: Lifestyle;
   multiplier?: number | null;
-  sports: Pick<UserSport, 'weekdays' | 'minutes' | 'intensity'>[];
+  sports: SportForKcal[];
+  /** Recent sport_logs; sports with enough RPE-rated logs use them instead of the declared intensity. */
+  sportLogs?: SportLogForKcal[];
   /** loss: % bodyweight per week (positive); gain: % per month. */
   targetRatePct?: number | null;
   kcalOverride?: number | null; // after accepted calorie adjustments
@@ -95,7 +121,7 @@ export function nutritionTargets(input: NutritionInput): NutritionTargets {
   const multiplier = input.multiplier ?? defaultMultiplier(input.lifestyle);
   const bmr = NUTRITION.bmrPerKg * kg;
   const maintenanceExSport = Math.round(bmr * multiplier);
-  const sportKcal = sportKcalPerDay(input.sports, kg);
+  const sportKcal = sportKcalPerDay(input.sports, kg, input.sportLogs);
   const maintenance = maintenanceExSport + sportKcal;
 
   let ratePct = input.targetRatePct ?? defaultRatePct(input.phase, input.status, input.sex, input.bodyFatPct);
@@ -190,4 +216,89 @@ export function applyKcalChange(
     fatG = Math.max(t.fatMinG, Math.floor((newKcal - t.proteinG * 4 - carbsG * 4) / 9));
   }
   return { kcal: newKcal, proteinG: t.proteinG, fatG, carbsG };
+}
+
+// ---------------------------------------------------------------------------
+// Phase, rate and cadence helpers (shared by the server actions and the nutrition page)
+// ---------------------------------------------------------------------------
+
+/**
+ * Target rates the app offers and accepts. Loss: N-RAT-01 (0.5–1 %/week). Gain: N-RAT-02, the options inside the
+ * status's monthly range (advanced, whose range starts at 0, gets 0.25 and 0.5).
+ */
+export function allowedRatePcts(phase: NutritionPhase, status: Status): number[] {
+  if (phase === 'loss') return [...NUTRITION.lossRateOptions];
+  if (phase === 'gain') {
+    const [lo, hi] = NUTRITION.gainRatePctPerMonth[status];
+    return NUTRITION.gainRateOptions.filter((x) => x >= lo && x <= hi);
+  }
+  return [];
+}
+
+/** Null when `ratePct` is allowed for the phase and status, otherwise a message naming the rule. */
+export function rateError(phase: NutritionPhase, status: Status, ratePct: number | undefined): string | null {
+  if (phase === 'maintain' || ratePct == null) return null;
+  if (phase === 'loss') {
+    const { min, max } = NUTRITION.lossRatePctPerWeek;
+    if (ratePct > max) return 'Losing more than 1% of bodyweight per week is blocked (N-RAT-01).';
+    if (ratePct < min) return `Pick a loss rate between ${min} and ${max}% per week (N-RAT-01).`;
+    return null;
+  }
+  const [lo, hi] = NUTRITION.gainRatePctPerMonth[status];
+  const min = Math.min(...allowedRatePcts('gain', status));
+  if (ratePct > hi || ratePct < min) return `For a ${status} lifter the gain rate is ${lo}–${hi}% per month (N-RAT-02).`;
+  return null;
+}
+
+export interface PhaseSpan {
+  phase: string;
+  from: string;
+  to: string | null;
+}
+
+/** N-PHS-02: days spent building/maintaining vs cutting, from nutrition_settings.phase_history. */
+export function buildCutDays(history: PhaseSpan[], today: string): { buildDays: number; cutDays: number } {
+  const days = (h: PhaseSpan) => Math.max(0, daysBetween(h.from, h.to ?? today));
+  const cutDays = history.filter((h) => h.phase === 'loss').reduce((a, h) => a + days(h), 0);
+  const buildDays = history.filter((h) => h.phase !== 'loss').reduce((a, h) => a + days(h), 0);
+  return { buildDays, cutDays };
+}
+
+/**
+ * N-PHS-02 is guidance, not a block: starting a cut early stays the user's call. Returns a warning when a new cut
+ * (counted as at least one week) would leave less than 4× as much build/maintain time as total cut time.
+ */
+export function cutRatioWarning(history: PhaseSpan[], today: string): string | null {
+  const { buildDays, cutDays } = buildCutDays(history, today);
+  const needed = NUTRITION.gainToCutRatio * (cutDays + 7);
+  if (buildDays >= needed) return null;
+  const weeks = Math.ceil((needed - buildDays) / 7);
+  return `So far: ${Math.round(buildDays / 7)} weeks building or maintaining, ${Math.round(cutDays / 7)} cutting. The 4:1 guideline suggests about ${weeks} more weeks of building or maintaining before this cut (N-PHS-02).`;
+}
+
+/**
+ * Cadence fields written by every recompute (N-ADJ-01, N-ADJ-03). Only trend adjustments (an accepted calorie or
+ * activity-factor proposal) restart the 14-day wait, and only the factor proposal closes the first-week check.
+ * Rebases (lifestyle change, new weigh-in, sports, manual recalculation) keep both, so they never use up the cadence.
+ */
+export function nextAdjustState(
+  prev: { lastAdjustedOn: string | null; initialAdjustDone: boolean } | null,
+  change: { phaseChanged: boolean; kcalOffsetDelta?: number; multiplierAdjust?: boolean },
+  today: string,
+): { lastAdjustedOn: string | null; initialAdjustDone: boolean } {
+  const adjusted = !!change.kcalOffsetDelta || !!change.multiplierAdjust;
+  return {
+    lastAdjustedOn: adjusted ? today : (prev?.lastAdjustedOn ?? null),
+    initialAdjustDone: change.phaseChanged ? false : change.multiplierAdjust ? true : (prev?.initialAdjustDone ?? false),
+  };
+}
+
+/**
+ * APP: a weigh-in refreshes the targets when the averaged bodyweight they use moved by at least
+ * NUTRITION.recomputeOnBodyweightKg, or when the stored targets don't record one. Smaller moves change kcal by < ~20.
+ */
+export function bodyweightChangedEnough(usedKg: number | null | undefined, currentKg: number | null | undefined): boolean {
+  if (currentKg == null) return false;
+  if (usedKg == null) return true;
+  return Math.abs(currentKg - usedKg) >= NUTRITION.recomputeOnBodyweightKg - 1e-9;
 }

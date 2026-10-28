@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { reviewWeekFor } from '@/lib/engine/fatigue';
-import { inferTrainingStatus } from '@/lib/engine/status';
 import { isoWeekday } from '@/lib/engine/util';
 import { requireUser } from '@/lib/server/context';
 import { runWeeklyEngines } from '@/lib/server/review';
@@ -45,13 +44,16 @@ export async function submitReview(raw: z.input<typeof Answers>): Promise<{ ok: 
     log.error('submitReview: weekly engines failed', { userId: user.id, err: e });
     return { ok: false, error: e instanceof Error ? e.message : 'Could not run the weekly review' };
   }
-  const { review, proposals, state, settings } = engines;
+  const { review, proposals } = engines;
   log.debug('weekly engines done', { userId: user.id, proposals: proposals.length, yesCount: review.yesCount });
   const { error } = log.db('upsert weekly_reviews', await supabase.from('weekly_reviews').upsert({
     user_id: user.id,
     week_start: weekStart,
     ...parsed.data,
     autofilled: toJson({ answers: review.autofill.answers, evidence: review.autofill.evidence }),
+    // T-STA-03: this week's inference (main lifts + session anchors, the same set weeklyReview checks). One row per
+    // week, so re-submitting overwrites it rather than counting as a second review in a row.
+    inferred_status: review.inference.status,
     completed_at: new Date().toISOString(),
   }), { userId: user.id, weekStart });
   if (error) return { ok: false, error: error.message };
@@ -62,19 +64,6 @@ export async function submitReview(raw: z.input<typeof Answers>): Promise<{ ok: 
     log.error('submitReview: insertProposals failed', { userId: user.id, err: e });
     revalidatePath('/', 'layout');
     return { ok: false, error: 'Your answers were saved, but the proposals could not be created. Please submit again.' };
-  }
-  // Remember this review's status inference (T-STA-03 needs two in a row).
-  const inf = inferTrainingStatus({ sets: state.sets, today, anchorExerciseIds: state.mainLiftExerciseIds });
-  if (inf.status) {
-    const { error: shErr } = log.db(
-      'update user_settings.status_history',
-      await supabase.from('user_settings').update({ status_history: [...(settings?.status_history ?? []), inf.status].slice(-6) }).eq('user_id', user.id),
-      { userId: user.id, status: inf.status },
-    );
-    if (shErr) {
-      revalidatePath('/', 'layout');
-      return { ok: false, created, error: `Your review was saved, but your training status history could not be updated: ${shErr.message}` };
-    }
   }
   revalidatePath('/', 'layout');
   return { ok: true, created };

@@ -4,21 +4,32 @@ import { NUTRITION } from '@/lib/knowledge/constants';
 import { runningAverage, weeklyAverages, trendDirection, ratePctPerWeek, type WeekAverage } from '@/lib/engine/trend';
 import { addDays, daysBetween, mondayOf } from '@/lib/engine/util';
 import type { Status } from '@/lib/engine/types';
+import { bodyweightChangedEnough } from '@/lib/engine/nutrition';
+import { latestBodyweight, recomputeNutrition } from './plan';
+import { fetchAllPages } from './queries';
 import { toDisplay, type Units } from '@/lib/utils/units';
 import type { BwPoint } from '@/components/app/charts';
 import { createLogger } from '@/lib/log';
 
 const log = createLogger('server/bodyweight');
 
-export async function bodyweightSeries(supabase: Supa, userId: string, today: string, units: Units, opts: { days?: number; status: Status }) {
-  const from = addDays(today, -(opts.days ?? 120));
-  const [rowsRes, nsRes] = await Promise.all([
-    supabase.from('checkins').select('day, bodyweight_kg').eq('user_id', userId).gte('day', from).not('bodyweight_kg', 'is', null).order('day'),
+/** Weigh-in chart data. `days` defaults to 120; `null` means all history (paged past the 1000-row cap). */
+export async function bodyweightSeries(supabase: Supa, userId: string, today: string, units: Units, opts: { days?: number | null; status: Status }) {
+  const from = opts.days === null ? null : addDays(today, -(opts.days ?? 120));
+  const [{ data: rows }, nsRes] = await Promise.all([
+    fetchAllPages<{ day: string; bodyweight_kg: number | null }>(
+      'select weigh-ins',
+      (a, b) => {
+        let q = supabase.from('checkins').select('day, bodyweight_kg').eq('user_id', userId).not('bodyweight_kg', 'is', null);
+        if (from) q = q.gte('day', from);
+        return q.order('day').range(a, b);
+      },
+      { userId },
+    ),
     supabase.from('nutrition_settings').select('*').eq('user_id', userId).maybeSingle(),
   ]);
-  const { data: rows } = log.db('select weigh-ins', rowsRes, { userId });
   const { data: ns } = log.db('select nutrition_settings', nsRes, { userId });
-  const ins = (rows ?? []).map((r) => ({ day: r.day, kg: Number(r.bodyweight_kg) }));
+  const ins = rows.map((r) => ({ day: r.day, kg: Number(r.bodyweight_kg) }));
   const weeks = weeklyAverages(ins);
   const running = runningAverage(ins, NUTRITION.weighIns.runningAvgDays[0]);
 
@@ -58,3 +69,31 @@ export async function bodyweightSeries(supabase: Supa, userId: string, today: st
 }
 
 export type WeekAvg = WeekAverage;
+
+/**
+ * After a weigh-in: rebase the nutrition targets when the averaged bodyweight they use (mean of the last 7
+ * weigh-ins) moved by at least NUTRITION.recomputeOnBodyweightKg. This is a base-target recompute only: it keeps
+ * the accepted kcal offset and never touches the N-ADJ-03 cadence (DECISIONS 37). Never throws: the weigh-in is
+ * already saved, and a failed refresh only means the targets catch up at the next recompute.
+ */
+export async function refreshTargetsAfterWeighIn(supabase: Supa, userId: string): Promise<{ refreshed: boolean; kcal?: number }> {
+  try {
+    const [nsRes, ntRes] = await Promise.all([
+      supabase.from('nutrition_settings').select('user_id').eq('user_id', userId).maybeSingle(),
+      supabase.from('nutrition_targets').select('bodyweight_kg').eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    const { data: ns, error: nsErr } = log.db('select nutrition_settings', nsRes, { userId });
+    const { data: nt, error: ntErr } = log.db('select latest nutrition_targets.bodyweight_kg', ntRes, { userId });
+    if (nsErr || ntErr) return { refreshed: false };
+    // No settings yet means onboarding hasn't set a phase; recomputing here would invent one.
+    if (!ns) return { refreshed: false };
+    const kg = await latestBodyweight(supabase, userId, null);
+    const used = nt?.bodyweight_kg == null ? null : Number(nt.bodyweight_kg);
+    if (!bodyweightChangedEnough(used, kg)) return { refreshed: false };
+    const res = await recomputeNutrition(supabase, userId, 'weigh-in N-WGT-02');
+    return { refreshed: true, kcal: res.kcal };
+  } catch (e) {
+    log.error('refreshTargetsAfterWeighIn failed', { userId, err: e });
+    return { refreshed: false };
+  }
+}

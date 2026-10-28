@@ -6,7 +6,7 @@ import { formatRx, isCompound, prescribe, rangeLevel, restFor } from './prescrip
 import { suggestNextSession } from './progression';
 import { placeSessions } from './schedule';
 import { createLogger } from '@/lib/log';
-import { painfulMuscles, selectForSlot, selectMainLift, type SelectionContext } from './selection';
+import { injuryNote, painfulMuscles, selectForSlot, selectMainLift, type SelectionContext } from './selection';
 import { chooseSplit, sessionVariant, TEMPLATES, type SplitDef } from './split';
 import { hardSportSessionsPerWeek } from './sports';
 import { backoffLoad, backoffReps, backoffSets, blockWeeks, defaultBlockKind, isStrengthKind, singleLoad, singleRpe } from './strength';
@@ -31,10 +31,15 @@ const log = createLogger('engine/block');
 import { computeTargets, targetsMap, weeklyTargetFor } from './volume';
 import { addDays, isoWeekday, median, mondayOf, roundHalfUp } from './util';
 
-export function incrementFor(ex: Pick<ExerciseDef, 'equipment' | 'defaultIncrementKg'>, equipment: Equipment[], increments: Record<string, number>): number {
-  if (ex.defaultIncrementKg) return ex.defaultIncrementKg;
+/**
+ * Load step for an exercise. A custom exercise's own step wins (the user knows that machine). A catalog step is a
+ * minimum progression jump, so it never goes below the user's step for that equipment (the smallest jump they can make).
+ */
+export function incrementFor(ex: Pick<ExerciseDef, 'equipment' | 'defaultIncrementKg' | 'custom'>, equipment: Equipment[], increments: Record<string, number>): number {
+  if (ex.custom && ex.defaultIncrementKg) return ex.defaultIncrementKg;
   const eq = ex.equipment.find((e) => equipment.includes(e)) ?? ex.equipment[0];
-  return increments[eq] ?? DEFAULT_INCREMENTS[eq] ?? 2.5;
+  const forEquipment = increments[eq] ?? DEFAULT_INCREMENTS[eq] ?? 2.5;
+  return Math.max(ex.defaultIncrementKg ?? 0, forEquipment);
 }
 
 /** Exposures (sessions) of an exercise from logged sets, oldest first, working sets only. */
@@ -412,9 +417,11 @@ function materialiseSession(
       heavyLowerBarbell: w.ex.category === 'lower_free_compound' && w.ex.equipment.includes('barbell'),
     };
     const sug = suggestNextSession(hist, rx);
+    const note = injuryNote(w.ex, input.injuries);
+    if (note) ruleIds.push('T-SEL-08');
     return {
       exerciseId: w.ex.id, slotKey: w.slotKey, position, sets, repMin: rx.repMin, repMax: rx.repMax, rirMin, rirMax,
-      restSeconds: rx.restSeconds, note: null, suggestedLoadKg: sug.load, ruleIds: [...ruleIds, ...sug.ruleIds],
+      restSeconds: rx.restSeconds, note, suggestedLoadKg: sug.load, ruleIds: [...ruleIds, ...sug.ruleIds],
     };
   });
   const est = estimateMinutes({ ...s, exercises: s.exercises.map((w, i) => ({ ...w, sets: exercises[i].sets })) });

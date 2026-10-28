@@ -2,7 +2,8 @@ import 'server-only';
 import type { Supa } from '@/lib/supabase/server';
 import { generateBlock } from '@/lib/engine/block';
 import { loggedMuscleSets } from '@/lib/engine/counting';
-import { nutritionTargets, phaseForGoal, applyKcalChange, defaultRatePct } from '@/lib/engine/nutrition';
+import { nutritionTargets, phaseForGoal, applyKcalChange, defaultRatePct, nextAdjustState } from '@/lib/engine/nutrition';
+import { NUTRITION } from '@/lib/knowledge/constants';
 import {
   TRACKED_MUSCLES,
   type BlockInput,
@@ -196,7 +197,7 @@ export async function regeneratePlan(supabase: Supa, userId: string, opts: Regen
         rest_seconds: e.restSeconds,
         suggested_load_kg: e.suggestedLoadKg ?? '',
         is_main_lift_single: !!e.isMainLiftSingle,
-        note: e.note ?? null,
+        label: e.note ?? null, // engine label ("Top single…", "Back-off…"); user notes live in planned_exercises.note
         rule_ids: e.ruleIds,
       })),
     }))),
@@ -227,25 +228,47 @@ export async function latestBodyweight(supabase: Supa, userId: string, fallback:
   return Math.round((ws.reduce((a, b) => a + b, 0) / ws.length) * 10) / 10;
 }
 
-/** Recomputes nutrition targets and writes a new nutrition_targets row (N-SPT-03: immediate, no proposal). */
-export async function recomputeNutrition(
-  supabase: Supa,
-  userId: string,
-  reason: string,
-  opts?: { phase?: NutritionPhase; ratePct?: number; multiplier?: number; kcalOffsetDelta?: number; resetPhase?: boolean },
-) {
+export interface RecomputeOptions {
+  phase?: NutritionPhase;
+  ratePct?: number;
+  multiplier?: number;
+  /**
+   * The new `multiplier` rebases the targets (a lifestyle change) instead of being an N-ADJ-01 trend adjustment:
+   * it then leaves last_adjusted_on and initial_adjust_done alone (DECISIONS 40).
+   */
+  rebase?: boolean;
+  /** An accepted calorie change (N-ADJ-02). Always counts as a trend adjustment and restarts the 14-day wait. */
+  kcalOffsetDelta?: number;
+  resetPhase?: boolean;
+}
+
+/**
+ * Recomputes nutrition targets and writes a new nutrition_targets row (N-SPT-03: immediate, no proposal).
+ * Base targets always follow the current bodyweight, lifestyle and sports; only `kcalOffsetDelta` and a
+ * non-rebase `multiplier` count as trend adjustments for the N-ADJ-03 cadence (see `nextAdjustState`).
+ */
+export async function recomputeNutrition(supabase: Supa, userId: string, reason: string, opts?: RecomputeOptions) {
   log.debug('recomputeNutrition', { userId, reason, phase: opts?.phase, resetPhase: opts?.resetPhase });
-  const [profileRes, settingsRes, nsRes, sportsRes] = await Promise.all([
+  const [profileRes, settingsRes, nsRes, sportsRes, sportLogsRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('user_id', userId).single(),
     supabase.from('user_settings').select('*').eq('user_id', userId).single(),
     supabase.from('nutrition_settings').select('*').eq('user_id', userId).maybeSingle(),
     supabase.from('user_sports').select('*, sports(*)').eq('user_id', userId),
+    // Recent logged sport sessions calibrate per-session sport calories from session RPE (N-SPT-01).
+    // The window is counted from the UTC date so this can run in parallel; a day either way doesn't matter.
+    supabase
+      .from('sport_logs')
+      .select('sport_id, minutes, session_rpe')
+      .eq('user_id', userId)
+      .gte('performed_on', addDays(new Date().toISOString().slice(0, 10), -NUTRITION.sportCalibration.lookbackDays)),
   ]);
   const { data: profile, error: profileErr } = log.db('select profiles', profileRes, { userId });
   const { data: settings, error: settingsErr } = log.db('select user_settings', settingsRes, { userId });
   // A failed read would be treated as "no nutrition settings yet" (resetting the phase) or "no sports", so fail instead.
   const { data: ns, error: nsErr } = log.db('select nutrition_settings', nsRes, { userId });
   const { data: sportRows, error: sportsErr } = log.db('select user_sports', sportsRes, { userId });
+  // Calibration is optional: a failed read just falls back to the declared sport intensity.
+  const { data: sportLogRows } = log.db('select sport_logs', sportLogsRes, { userId });
   const readErr = profileErr ?? settingsErr ?? nsErr ?? sportsErr;
   if (readErr) throw new Error(readErr.message);
   if (!profile || !settings) throw new Error('missing profile');
@@ -262,7 +285,8 @@ export async function recomputeNutrition(
     opts?.ratePct ?? (phaseChanged ? defaultRatePct(phase, status, sex, profile.body_fat_pct) : Math.abs(Number(ns!.target_rate_pct)));
   const multiplier = opts?.multiplier ?? (ns ? Number(ns.activity_multiplier) : undefined);
   const sports = ((sportRows ?? []) as SportRow[]).filter((s) => s.active && s.sports).map(mapUserSport);
-  const base = nutritionTargets({ bodyweightKg: kg, sex, bodyFatPct: profile.body_fat_pct, status, phase, lifestyle, multiplier, sports, targetRatePct: ratePct });
+  const sportLogs = (sportLogRows ?? []).map((l) => ({ sportId: l.sport_id, minutes: l.minutes, rpe: l.session_rpe }));
+  const base = nutritionTargets({ bodyweightKg: kg, sex, bodyFatPct: profile.body_fat_pct, status, phase, lifestyle, multiplier, sports, sportLogs, targetRatePct: ratePct });
   const offset = phaseChanged ? (opts?.kcalOffsetDelta ?? 0) : (ns?.kcal_offset ?? 0) + (opts?.kcalOffsetDelta ?? 0);
   const final = offset ? { ...base, ...applyKcalChange(base, base.kcal + offset) } : base;
 
@@ -285,9 +309,15 @@ export async function recomputeNutrition(
     carbs_g: final.carbsG,
     sport_kcal_per_day: base.sportKcalPerDay,
     maintenance_kcal: base.maintenance,
+    bodyweight_kg: kg,
     reason: `${reason}: ${base.ruleIds.join(', ')}`,
   }).select('id').single(), { userId, reason });
   if (targetErr) throw new Error(targetErr.message);
+  const cadence = nextAdjustState(
+    ns ? { lastAdjustedOn: ns.last_adjusted_on, initialAdjustDone: ns.initial_adjust_done } : null,
+    { phaseChanged: !!phaseChanged, kcalOffsetDelta: opts?.kcalOffsetDelta, multiplierAdjust: opts?.multiplier != null && !opts.rebase },
+    today,
+  );
   const { error: nsWriteErr } = log.db('upsert nutrition_settings', await supabase.from('nutrition_settings').upsert({
     user_id: userId,
     phase,
@@ -295,8 +325,8 @@ export async function recomputeNutrition(
     maintenance_kcal: base.maintenance,
     target_rate_pct: phase === 'loss' ? -ratePct : ratePct,
     phase_started_on: phaseChanged ? today : ns!.phase_started_on,
-    last_adjusted_on: opts?.kcalOffsetDelta || opts?.multiplier ? today : (ns?.last_adjusted_on ?? null),
-    initial_adjust_done: phaseChanged ? false : opts?.multiplier ? true : (ns?.initial_adjust_done ?? false),
+    last_adjusted_on: cadence.lastAdjustedOn,
+    initial_adjust_done: cadence.initialAdjustDone,
     kcal_offset: offset,
     phase_history: toJson(newHistory),
   }), { userId, reason });
@@ -304,5 +334,5 @@ export async function recomputeNutrition(
     log.db('undo insert nutrition_targets', await supabase.from('nutrition_targets').delete().eq('id', target.id).eq('user_id', userId), { userId, targetId: target.id });
     throw new Error(nsWriteErr.message);
   }
-  return { ...base, kcal: final.kcal, fatG: final.fatG, carbsG: final.carbsG, warnings: base.warnings };
+  return { ...base, kcal: final.kcal, fatG: final.fatG, carbsG: final.carbsG, warnings: base.warnings, bodyweightKg: kg };
 }

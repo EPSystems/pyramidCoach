@@ -14,6 +14,7 @@ import { fmtLoad } from '@/lib/utils/units';
 import { prettyDate } from '@/lib/utils/dates';
 import { CATEGORY_LABEL } from '@/lib/knowledge/labels';
 import { ExerciseActions } from './actions-ui';
+import { CustomExerciseDialog, type ExerciseDraft } from '../exercise-form';
 
 export const metadata: Metadata = { title: 'Exercise' };
 
@@ -24,12 +25,13 @@ export default async function ExercisePage({ params }: PageProps<'/library/[slug
   const exercises = await loadExercises(supabase);
   const ex = exercises.find((e) => e.slug === slug);
   if (!ex) notFound();
-  const { data: row } = await supabase.from('exercises').select('cues, mistakes, owner_user_id').eq('id', ex.id).single();
+  const { data: row } = await supabase.from('exercises').select('cues, mistakes, owner_user_id, default_increment_kg').eq('id', ex.id).single();
   const { data: sets } = await supabase.from('logged_sets').select('*').eq('user_id', user.id).eq('exercise_id', ex.id).eq('is_warmup', false).order('performed_on', { ascending: false }).limit(60);
   const seed = EXERCISE_SEEDS.find((s) => s.slug === slug);
   const cues = row?.cues?.length ? row.cues : (seed?.cues ?? []);
   const mistakes = row?.mistakes?.length ? row.mistakes : (seed?.mistakes ?? []);
-  const subs = substitutionsFor(ex, { exercises, equipment: settings.equipment as never, injuries: ctx.injuries, disliked: [] });
+  const dislikedIds = settings.disliked_exercise_ids as string[];
+  const subs = substitutionsFor(ex, { exercises, equipment: settings.equipment as never, injuries: ctx.injuries, disliked: dislikedIds });
   const range = INTENSITY[ex.category];
   const byDay = new Map<string, NonNullable<typeof sets>>();
   for (const s of sets ?? []) byDay.set(s.performed_on, [...(byDay.get(s.performed_on) ?? []), s]);
@@ -37,7 +39,27 @@ export default async function ExercisePage({ params }: PageProps<'/library/[slug
   const primary = ex.muscles.filter((m) => m.role === 'primary');
   const secondary = ex.muscles.filter((m) => m.role === 'secondary');
   const styles = Object.fromEntries(ex.muscles.map((m) => [m.muscle, { fill: m.role === 'primary' ? 'var(--volt)' : 'color-mix(in oklch, var(--volt) 40%, var(--card))', label: m.role }]));
-  const disliked = (settings.disliked_exercise_ids as string[]).includes(ex.id);
+  const disliked = dislikedIds.includes(ex.id);
+  const custom = !!row?.owner_user_id;
+  const draft: ExerciseDraft | null = custom
+    ? {
+        name: ex.name,
+        pattern: ex.pattern,
+        category: ex.category,
+        equipment: ex.equipment,
+        primary: primary.map((m) => m.muscle),
+        secondary: secondary.map((m) => m.muscle),
+        long: ex.longLengthBias,
+        axial: ex.axialLoad,
+        impact: ex.impactLowerBody,
+        unilateral: ex.unilateral,
+        increment: row?.default_increment_kg != null ? String(row.default_increment_kg) : '',
+        main: ex.mainLiftKey ?? null,
+        cues: cues.join('\n'),
+        mistakes: mistakes.join('\n'),
+        substitutions: ex.substitutions,
+      }
+    : null;
 
   return (
     <div className="mx-auto max-w-4xl px-4 pt-6 sm:px-6 lg:px-8">
@@ -76,6 +98,7 @@ export default async function ExercisePage({ params }: PageProps<'/library/[slug
                 {range.reps[0]}–{range.reps[1]} reps @ {range.rir[1]}–{range.rir[0]} RIR <Why ruleIds={['T-INT-03']} />
               </p>
               <p className="text-muted-foreground text-sm">Equipment: {ex.equipment.join(' or ')}</p>
+              {row?.default_increment_kg != null && <p className="num text-muted-foreground text-sm">Load step: {fmtLoad(row.default_increment_kg, units)}</p>}
             </section>
             {cues.length > 0 && (
               <section className="bg-card rounded-2xl border p-5">
@@ -142,7 +165,8 @@ export default async function ExercisePage({ params }: PageProps<'/library/[slug
             <div className="bg-card rounded-2xl border p-3">
               <BodyMap side="both" styles={styles} interactive={false} />
             </div>
-            <ExerciseActions exerciseId={ex.id} disliked={disliked} custom={!!row?.owner_user_id} />
+            {draft && <CustomExerciseDialog exerciseId={ex.id} initial={draft} options={exercises.filter((e) => e.id !== ex.id).map((e) => ({ slug: e.slug, name: e.name }))} />}
+            <ExerciseActions exerciseId={ex.id} disliked={disliked} custom={custom} />
           </aside>
         </div>
       </div>

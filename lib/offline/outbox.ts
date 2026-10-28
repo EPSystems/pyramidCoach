@@ -8,7 +8,7 @@
 import { logSet } from '@/lib/actions/training';
 import { createLogger } from '@/lib/log';
 import { idbStore } from './idb';
-import { flushQueue, setKey, withTimeout, type FlushOutcome, type QueuedSet, type QueuedSetInput, type SetStore } from './queue';
+import { flushQueue, keyOf, setKey, withTimeout, type FlushOutcome, type QueuedSet, type QueuedSetInput, type SetStore } from './queue';
 
 const log = createLogger('offline/outbox');
 
@@ -45,15 +45,15 @@ export async function pendingSets(sessionId?: string): Promise<QueuedSet[]> {
 }
 
 export async function enqueueSet(input: QueuedSetInput): Promise<void> {
-  const key = setKey(input.plannedExerciseId, input.setIndex);
+  const key = keyOf(input);
   await getStore().put({ key, queuedAt: Date.now(), input });
   log.info('set queued offline', { key });
   emit({ synced: [], failed: [] });
 }
 
 /** Drop a queued set (undo before it synced). Returns true when it was queued. */
-export async function dequeueSet(plannedExerciseId: string, setIndex: number): Promise<boolean> {
-  const key = setKey(plannedExerciseId, setIndex);
+export async function dequeueSet(plannedExerciseId: string, setIndex: number, isWarmup = false): Promise<boolean> {
+  const key = setKey(plannedExerciseId, setIndex, isWarmup);
   const s = getStore();
   const had = (await s.all()).some((x) => x.key === key);
   if (had) {

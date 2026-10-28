@@ -96,7 +96,13 @@ export type SlotTag =
   | 'biceps_iso'
   | 'triceps_iso'
   | 'abs'
-  | 'traps';
+  | 'traps'
+  // Only custom exercises carry these today (derived by deriveSlotTags); no template slot asks for them yet.
+  | 'front_raise'
+  | 'forearms'
+  | 'erectors'
+  | 'adductors'
+  | 'carry';
 
 export interface ExerciseMuscle {
   muscle: MuscleId;
@@ -156,6 +162,10 @@ export interface LoggedSet {
   rir: number | null;
   isWarmup: boolean;
   sessionId?: string | null;
+  /** Prescribed RIR floor of the planned exercise this set was logged against (RIR drift, T-RIR-01). */
+  plannedRirMin?: number | null;
+  /** When the set was logged (timestamptz); used for the generator's real 48 h window. */
+  loggedAt?: string | null;
 }
 
 export interface PreviousBlockSummary {
@@ -311,6 +321,8 @@ export interface ExerciseHistory {
   increment: number;
   e1rm?: number | null;
   heavyLowerBarbell?: boolean;
+  /** Training status, for the T-PRG-06 pace check. Omitted = no pace check. */
+  status?: Status;
 }
 
 export interface SessionSuggestion extends RuleTagged {
@@ -366,7 +378,8 @@ export interface PlannedSessionState {
   date: string;
   status: 'planned' | 'in_progress' | 'done' | 'skipped' | 'moved';
   templateKey: string;
-  exercises: { id: string; exerciseId: string; sets: number; rirMin: number; rirMax: number }[];
+  kind?: PlannedSession['kind'];
+  exercises: { id: string; exerciseId: string; sets: number; rirMin: number; rirMax: number; repMin?: number; repMax?: number }[];
 }
 
 export interface WeeklyState {
@@ -384,6 +397,16 @@ export interface WeeklyState {
   statusHistory?: Status[]; // previous inferences (latest last)
   goal: Goal;
   nutritionPhase?: NutritionPhase;
+  /** Inputs for plan proposals (injury_adjust, volume_change, exercise_swap, plan_regenerate, intro_week). All optional. */
+  injuries?: Injury[];
+  /** This week's weekly targets per tracked muscle. */
+  targets?: Partial<Record<TrackedMuscle, number>>;
+  specialization?: TrackedMuscle[];
+  /** Yes-count of the review of the week before the reviewed one (null = none). */
+  previousYesCount?: number | null;
+  dislikedExerciseIds?: string[];
+  equipment?: Equipment[];
+  availableDays?: number[];
 }
 
 export interface StatusInference extends RuleTagged {

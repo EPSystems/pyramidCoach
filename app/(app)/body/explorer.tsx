@@ -9,7 +9,7 @@ import { bandFill, mixVolt, NONE_FILL, RECENCY, volumeBand, VOLUME_BANDS } from 
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { ALL_MUSCLES, TRACKED_MUSCLES, type MuscleId } from '@/lib/engine/types';
-import { MUSCLE_SHORT } from '@/lib/knowledge/muscles';
+import { INDIRECT_VIA, MUSCLE_SHORT } from '@/lib/knowledge/muscles';
 import { prettyDate } from '@/lib/utils/dates';
 import { cn } from '@/lib/utils';
 
@@ -22,7 +22,8 @@ export interface MuscleInfo {
   daysSince: number | null;
   soreness: { day: string; level: 'sore' | 'pain' }[];
   exercises: { name: string; slug: string; weight: number; sets: number }[];
-  injured: boolean;
+  /** Active and rehab injuries only. */
+  injuries: { label: string; severity: string; status: string; note: string | null }[];
   specialised: boolean;
 }
 
@@ -35,10 +36,10 @@ export function BodyExplorer({ info, adjustments }: { info: Partial<Record<Muscl
   const styleFor = (m: MuscleId): MuscleStyle => {
     const i = info[m];
     if (!i) return {};
-    const dashed = i.injured;
+    const dashed = i.injuries.length > 0;
     if (mode === 'volume' || mode === 'planned') {
       const v = mode === 'volume' ? i.logged : i.planned;
-      if (i.target == null) return { fill: v > 0 ? mixVolt(30) : NONE_FILL, dashed, label: `${v} sets (not targeted)` };
+      if (i.target == null) return { fill: v > 0 ? mixVolt(30) : NONE_FILL, dashed, label: `${v} sets (no own target)` };
       const band = volumeBand(v, i.target, i.specialised ? 30 : 20);
       return { fill: bandFill(band), dashed, label: `${v} of ${i.target} sets` };
     }
@@ -104,7 +105,7 @@ export function BodyExplorer({ info, adjustments }: { info: Partial<Record<Muscl
               <li key={m}>
                 <button type="button" onClick={() => setSel(m)} className="hover:bg-muted flex h-11 w-full items-center gap-2 rounded-lg px-2 text-left text-sm">
                   <span className="size-3 shrink-0 rounded-sm" style={{ background: st.fill }} />
-                  <span className={cn('flex-1', mi.injured && 'text-danger')}>{MUSCLE_SHORT[m]}</span>
+                  <span className={cn('flex-1', mi.injuries.length > 0 && 'text-danger')}>{MUSCLE_SHORT[m]}</span>
                   <span className="num text-muted-foreground">
                     {mode === 'planned' ? mi.planned : mode === 'volume' ? mi.logged : mode === 'recency' ? (mi.daysSince == null ? '-' : `${mi.daysSince}d`) : (mi.soreness.at(-1)?.level ?? '-')}
                     {(mode === 'volume' || mode === 'planned') && mi.target != null && <span>/{mi.target}</span>}
@@ -127,8 +128,15 @@ export function BodyExplorer({ info, adjustments }: { info: Partial<Record<Muscl
                     <>
                       Target band {Math.max(0, i.target - 1)}–{i.target + 1} sets this week.
                     </>
+                  ) : INDIRECT_VIA[sel] ? (
+                    <>
+                      No weekly target of its own: it gets its work from {INDIRECT_VIA[sel]!.how}, counted under {MUSCLE_SHORT[INDIRECT_VIA[sel]!.muscle].toLowerCase()}.{' '}
+                      <button type="button" className="underline underline-offset-2" onClick={() => setSel(INDIRECT_VIA[sel]!.muscle)}>
+                        See {MUSCLE_SHORT[INDIRECT_VIA[sel]!.muscle].toLowerCase()}
+                      </button>
+                    </>
                   ) : (
-                    'Shown on the map but not targeted in this version.'
+                    'No weekly target of its own: compound lifts train it, and sets here are counted for reference only.'
                   )}
                 </SheetDescription>
               </SheetHeader>
@@ -157,7 +165,20 @@ export function BodyExplorer({ info, adjustments }: { info: Partial<Record<Muscl
                     </li>
                   </ul>
                 )}
-                {i.injured && <p className="text-danger text-sm">Injury or rehab logged here: heavy spinal and impact work for this area is excluded. <Why ruleIds={['T-SEL-08']} /></p>}
+                {i.injuries.map((inj) => (
+                  <div key={inj.label} className="text-danger text-sm">
+                    <p>
+                      <span className="font-semibold">{inj.label}</span> ({inj.status === 'rehab' ? 'rehab' : inj.severity}):{' '}
+                      {inj.status === 'rehab'
+                        ? 'exercises for this area are planned lighter with higher reps; stop well short of pain.'
+                        : inj.severity === 'niggle'
+                          ? 'exercises you listed to avoid are left out; keep everything else pain-free.'
+                          : 'heavy spinal and impact work for this area is excluded, plus anything you listed to avoid.'}{' '}
+                      <Why ruleIds={['T-SEL-08']} />
+                    </p>
+                    {inj.note && <p className="text-muted-foreground mt-0.5">{inj.status === 'rehab' ? 'Rehab note' : 'Note'}: {inj.note}</p>}
+                  </div>
+                ))}
                 <div>
                   <p className="stamp text-muted-foreground mb-1">Exercises this week</p>
                   {i.exercises.length ? (

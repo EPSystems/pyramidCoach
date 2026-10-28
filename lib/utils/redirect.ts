@@ -57,3 +57,14 @@ export function safeNext(raw: string | null | undefined): string {
     return FALLBACK_NEXT;
   }
 }
+
+/**
+ * Where the proxy sends a signed-out visitor: /login, carrying the page they asked for as `?next=` so sign-in
+ * (password or Google) lands them back there. The path goes through safeNext, and the default page adds nothing.
+ * /reset-password is skipped: reaching it signed out means the recovery session expired, so there's nothing to return to.
+ */
+export function loginRedirect(pathname: string, search = ''): string {
+  const next = safeNext(`${pathname}${search}`);
+  if (next === FALLBACK_NEXT || pathname === '/' || pathname === '/reset-password') return '/login';
+  return `/login?next=${encodeURIComponent(next)}`;
+}

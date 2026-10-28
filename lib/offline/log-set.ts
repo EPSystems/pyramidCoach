@@ -28,7 +28,10 @@ export async function logSetOrQueue(raw: Omit<QueuedSetInput, 'performedOn'>): P
       log.error('enqueue failed', { plannedExerciseId: raw.plannedExerciseId, setIndex: raw.setIndex, err: e });
       return { ok: false, error: 'No connection, and the set could not be saved on this phone. Try again.' };
     }
-    const next = suggestNextSet({ rx: raw.rx, setIndex: raw.setIndex, load: raw.loadKg, reps: raw.reps, increment: raw.increment });
+    // Same as the server: a warm-up doesn't steer the working sets.
+    const next: Next = raw.isWarmup
+      ? { load: raw.loadKg, repsTarget: raw.reps, ruleIds: ['T-WUP-01'] }
+      : suggestNextSet({ rx: raw.rx, setIndex: raw.setIndex, load: raw.loadKg, reps: raw.reps, increment: raw.increment });
     return { ok: true, queued: true, data: { next } };
   };
   if (typeof navigator !== 'undefined' && !navigator.onLine) return queue();
@@ -46,11 +49,11 @@ export async function logSetOrQueue(raw: Omit<QueuedSetInput, 'performedOn'>): P
 }
 
 /** Undo a set: a queued set is simply dropped from the outbox; a synced one needs the server. */
-export async function deleteSetOrDequeue(plannedExerciseId: string, setIndex: number): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (await dequeueSet(plannedExerciseId, setIndex).catch(() => false)) {
+export async function deleteSetOrDequeue(plannedExerciseId: string, setIndex: number, isWarmup = false): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (await dequeueSet(plannedExerciseId, setIndex, isWarmup).catch(() => false)) {
     // A flush may have sent it a moment ago; clear the server copy too when we can (no-op if absent).
-    if (navigator.onLine) void deleteSet(plannedExerciseId, setIndex).catch(() => undefined);
+    if (navigator.onLine) void deleteSet(plannedExerciseId, setIndex, isWarmup).catch(() => undefined);
     return { ok: true };
   }
-  return deleteSet(plannedExerciseId, setIndex);
+  return deleteSet(plannedExerciseId, setIndex, isWarmup);
 }

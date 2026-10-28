@@ -1,6 +1,6 @@
 // Proposal payload schemas + applyProposal (Section 6.14). Pure: returns a diff the server applies in one go.
 import { z } from 'zod';
-import { INTRO_WEEK } from '@/lib/knowledge/constants';
+import { HIGHER_REP_WEEK, INTRO_WEEK } from '@/lib/knowledge/constants';
 import { exercisesLoadingArea } from './fatigue';
 import { isPrimary } from './selection';
 import { ALL_MUSCLES, TRACKED_MUSCLES, type BlockKind, type ExerciseDef, type MuscleId, type PlannedSessionState, type Proposal, type Status, type TrackedMuscle } from './types';
@@ -12,7 +12,14 @@ const status = z.enum(['novice', 'intermediate', 'advanced']);
 
 export const PAYLOAD_SCHEMAS = {
   standard_deload: z.object({ weekStart: z.string(), setCutPct: z.number().min(0.3).max(0.5), mode: z.enum(['sets', 'fewer_sessions']) }),
-  targeted_deload: z.object({ weekStart: z.string(), muscles: z.array(muscle), removeExerciseIds: z.array(z.string()), reduceSetsPct: z.number().min(0).max(1) }),
+  targeted_deload: z.object({
+    weekStart: z.string(),
+    muscles: z.array(muscle),
+    removeExerciseIds: z.array(z.string()),
+    reduceSetsPct: z.number().min(0).max(1),
+    /** 'higher_reps' = T-FAT-05: keep sets, move the area's exercises to a higher rep range for the week. */
+    mode: z.enum(['deload', 'higher_reps']).optional(),
+  }),
   intro_week: z.object({ blockId: z.string(), setPct: z.literal(0.75), rirBump: z.literal(1) }),
   volume_change: z.object({ changes: z.array(z.object({ muscle: tracked, from: z.number(), to: z.number() })) }),
   exercise_swap: z.object({ plannedExerciseIds: z.array(z.string()), fromExerciseId: z.string(), toExerciseId: z.string(), reason: z.string() }),
@@ -25,7 +32,15 @@ export const PAYLOAD_SCHEMAS = {
     details: z.string(),
     changes: z.array(z.object({ muscle: tracked, from: z.number(), to: z.number() })).optional(),
   }),
-  injury_adjust: z.object({ injuryId: z.string(), removeExerciseIds: z.array(z.string()), addExerciseIds: z.array(z.string()) }),
+  injury_adjust: z.object({
+    /** null = no injury logged yet: accepting records one from recurring check-in pain. */
+    injuryId: z.string().nullable(),
+    removeExerciseIds: z.array(z.string()),
+    addExerciseIds: z.array(z.string()),
+    muscle: muscle.optional(),
+    severity: z.enum(['niggle', 'pain', 'injury']).optional(),
+    label: z.string().optional(),
+  }),
   calorie_adjust: z.object({ fromKcal: z.number(), toKcal: z.number(), reason: z.string() }),
   multiplier_adjust: z.object({ from: z.number(), to: z.number(), reason: z.string() }),
 } as const;
@@ -36,6 +51,29 @@ export function validateProposal(p: Proposal): Proposal {
   return p;
 }
 
+/** Identity of a proposal for duplicate checks: same kind and same target (exercise, mode, injury or muscle). */
+export function proposalKey(kind: string, payload: unknown): string {
+  const p = (payload ?? {}) as Record<string, unknown>;
+  if (kind === 'plateau_action') return `${kind}:${p.exerciseId}`;
+  if (kind === 'targeted_deload') return `${kind}:${p.mode ?? 'deload'}`;
+  if (kind === 'exercise_swap') return `${kind}:${p.fromExerciseId}`;
+  if (kind === 'injury_adjust') return `${kind}:${p.injuryId ?? p.muscle}`;
+  return kind;
+}
+
+/** Key-order-independent JSON, so payloads that differ only in key order compare equal. */
+export function stableJson(x: unknown): string {
+  if (Array.isArray(x)) return `[${x.map(stableJson).join(',')}]`;
+  if (x && typeof x === 'object') {
+    return `{${Object.keys(x as object)
+      .sort()
+      .filter((k) => (x as Record<string, unknown>)[k] !== undefined)
+      .map((k) => `${JSON.stringify(k)}:${stableJson((x as Record<string, unknown>)[k])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(x);
+}
+
 export interface StoredPlan {
   sessions: PlannedSessionState[];
   exercises: ExerciseDef[];
@@ -43,7 +81,7 @@ export interface StoredPlan {
 }
 
 export interface PlanDiff {
-  exerciseUpdates: { id: string; sets?: number; rirMin?: number; rirMax?: number; exerciseId?: string }[];
+  exerciseUpdates: { id: string; sets?: number; rirMin?: number; rirMax?: number; repMin?: number; repMax?: number; exerciseId?: string }[];
   exerciseDeletes: string[];
   sessionUpdates: { id: string; status?: 'skipped'; kind?: 'deload' | 'intro' }[];
   regenerate?: {
@@ -54,6 +92,8 @@ export interface PlanDiff {
     targetAdjustments?: Partial<Record<TrackedMuscle, number>>;
   };
   settings?: { trainingStatus?: Status };
+  /** injury_adjust: create (id null) or update an injury before the plan is regenerated (T-SEL-08). */
+  injury?: { id: string | null; muscleId?: MuscleId; label?: string; severity?: 'niggle' | 'pain' | 'injury'; addAvoidIds: string[] };
   nutrition?: { kcal?: number; multiplier?: number };
   summary: string[];
 }
@@ -95,6 +135,20 @@ export function applyProposal(plan: StoredPlan, p: Proposal): PlanDiff {
     case 'targeted_deload': {
       const pl = PAYLOAD_SCHEMAS.targeted_deload.parse(p.payload);
       const d = empty();
+      if (pl.mode === 'higher_reps') {
+        // T-FAT-05: same exercises and sets; the ones working the area move to a higher rep range (lighter loads follow).
+        for (const s of plan.sessions.filter((x) => inWeek(x, pl.weekStart))) {
+          for (const e of s.exercises) {
+            const ex = exMap.get(e.exerciseId);
+            if (!ex || !pl.muscles.some((m: MuscleId) => isPrimary(ex, m) || (m === 'erectors' && ex.axialLoad))) continue;
+            const [repMin, repMax] = HIGHER_REP_WEEK[ex.category];
+            if (e.repMin != null && e.repMin >= repMin) continue;
+            d.exerciseUpdates.push({ id: e.id, repMin, repMax });
+          }
+        }
+        d.summary.push(`Higher-rep week of ${pl.weekStart} on ${d.exerciseUpdates.length} exercises for ${pl.muscles.join(', ')}; sets unchanged.`);
+        return d;
+      }
       for (const s of plan.sessions.filter((x) => inWeek(x, pl.weekStart))) {
         for (const e of s.exercises) {
           if (pl.removeExerciseIds.includes(e.exerciseId)) {
@@ -147,7 +201,8 @@ export function applyProposal(plan: StoredPlan, p: Proposal): PlanDiff {
         for (const c of pl.changes) adj[c.muscle] = (adj[c.muscle] ?? 0) + (c.to - c.from);
         return { ...empty(), regenerate: { reason: 'plateau_add_volume', targetAdjustments: adj }, summary: pl.changes.map((c) => `${c.muscle}: +${c.to - c.from} sets/week`) };
       }
-      return { ...empty(), summary: ['Noted. Fix the basics and reassess after another block.'] };
+      // Nothing in the plan changes: the accepted proposal itself is the record, and Today shows its checklist for a week.
+      return { ...empty(), summary: ['Basics checklist pinned to Today for the next 7 days. Reassess after another block.'] };
     }
     case 'exercise_swap': {
       const pl = PAYLOAD_SCHEMAS.exercise_swap.parse(p.payload);
@@ -166,8 +221,18 @@ export function applyProposal(plan: StoredPlan, p: Proposal): PlanDiff {
       return { ...empty(), regenerate: { reason: 'block_transition', blockKind: pl.toKind as BlockKind, startsOn: pl.startsOn, fromHeavyPhase: heavy }, summary: [`New ${pl.toKind} block from ${pl.startsOn}.`] };
     }
     case 'plan_regenerate':
-    case 'injury_adjust':
       return { ...empty(), regenerate: { reason: p.kind }, summary: ['Plan regenerated from today.'] };
+    case 'injury_adjust': {
+      const pl = PAYLOAD_SCHEMAS.injury_adjust.parse(p.payload);
+      const injury = pl.injuryId || pl.muscle ? { id: pl.injuryId, muscleId: pl.muscle, label: pl.label, severity: pl.severity, addAvoidIds: pl.removeExerciseIds } : undefined;
+      const names = pl.removeExerciseIds.map((id) => exMap.get(id)?.name ?? id);
+      return {
+        ...empty(),
+        injury,
+        regenerate: { reason: p.kind },
+        summary: [`${pl.injuryId ? 'Injury updated' : 'Injury logged'}${names.length ? `; avoiding ${names.join(', ')}` : ''}. Plan regenerated from today.`],
+      };
+    }
     case 'status_change': {
       const pl = PAYLOAD_SCHEMAS.status_change.parse(p.payload);
       return { ...empty(), settings: { trainingStatus: pl.to }, regenerate: { reason: 'status_change' }, summary: [`Status ${pl.from} → ${pl.to}.`] };

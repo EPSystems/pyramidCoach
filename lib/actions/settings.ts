@@ -117,6 +117,10 @@ export async function updateProfile(raw: z.input<typeof Profile>): Promise<R> {
   // A failed read must not look like "lifestyle changed": that would reset the activity multiplier.
   const { data: s, error: readErr } = log.db('select user_settings.lifestyle', await supabase.from('user_settings').select('lifestyle').eq('user_id', user.id).single(), { userId: user.id });
   if (readErr || !s) return { ok: false, error: readErr?.message ?? 'Settings not found' };
+  // Same for the body inputs the calorie targets use: an unreadable profile must not trigger (or skip) a recompute by guess.
+  const { data: before, error: profReadErr } = log.db('select profiles (body)', await supabase.from('profiles').select('sex, height_cm, body_fat_pct').eq('user_id', user.id).single(), { userId: user.id });
+  if (profReadErr || !before) return { ok: false, error: profReadErr?.message ?? 'Profile not found' };
+  const bodyChanged = before.sex !== d.sex || numChanged(before.height_cm, d.heightCm) || numChanged(before.body_fat_pct, d.bodyFatPct);
   const { error: profErr } = log.db(
     'update profiles',
     await supabase
@@ -133,14 +137,36 @@ export async function updateProfile(raw: z.input<typeof Profile>): Promise<R> {
       revalidatePath('/', 'layout');
       return { ok: false, error: `Profile saved, but lifestyle could not be updated: ${lsErr.message}` };
     }
-    // Lifestyle changes the activity factor: reset it to the new default.
+    // Lifestyle changes the activity factor: reset it to the new default. A rebase, so it doesn't use up the
+    // 14-day adjustment wait or the first-week check (DECISIONS 40).
     const { NUTRITION } = await import('@/lib/knowledge/constants');
     step = await afterSettingsSaved(user.id, 'updateProfile', async () => {
-      await recomputeNutrition(supabase, user.id, 'lifestyle change N-MNT-02', { multiplier: NUTRITION.multiplierDefault[d.lifestyle] });
+      await recomputeNutrition(supabase, user.id, 'lifestyle change N-MNT-02', { multiplier: NUTRITION.multiplierDefault[d.lifestyle], rebase: true });
     });
+  } else if (bodyChanged) {
+    // Sex and body fat feed maintenance (N-MNT-01) and the default rate; keep the current phase, multiplier and offset.
+    step = await afterSettingsSaved(user.id, 'updateProfile', () => recomputeNutrition(supabase, user.id, 'profile change N-MNT-01'));
   }
   revalidatePath('/', 'layout');
   return step;
+}
+
+const Theme = z.enum(['dark', 'light', 'system']);
+
+/** Saves the theme to the profile so it follows the user to other devices (ThemeSync applies it there). */
+export async function updateTheme(raw: z.input<typeof Theme>): Promise<R> {
+  const p = Theme.safeParse(raw);
+  if (!p.success) return { ok: false, error: 'Invalid theme' };
+  const { supabase, user } = await requireUser();
+  const { error } = log.db('update profiles.theme', await supabase.from('profiles').update({ theme: p.data }).eq('user_id', user.id), { userId: user.id });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/** numeric columns come back as numbers (or strings for some numeric types); compare by value, null-aware. */
+function numChanged(a: number | string | null, b: number | null): boolean {
+  if (a === null || b === null) return (a === null) !== (b === null);
+  return Number(a) !== b;
 }
 
 function isTimeZone(tz: string): boolean {
