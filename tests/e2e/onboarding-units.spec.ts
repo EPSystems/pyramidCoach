@@ -9,7 +9,7 @@ test('lb user: 225 lb × 5 squat seeds a kg e1RM and 5 ft 9 in stores 175.3 cm',
   await expect(page).toHaveURL(/onboarding/);
 
   await page.getByRole('textbox').first().fill('Pounds');
-  await page.getByRole('radio', { name: 'Male' }).click();
+  await page.getByRole('radio', { name: 'Male', exact: true }).click();
   await page.getByRole('radio', { name: 'lb' }).click();
   await page.getByPlaceholder('72').fill('180');
   await page.getByLabel('Height feet').fill('5');

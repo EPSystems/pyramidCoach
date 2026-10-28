@@ -34,6 +34,7 @@ test('auth pages are noindex', async ({ page }) => {
 test('theme is saved to the profile and applied on another device', async ({ page, browser, baseURL }) => {
   const { email, id } = await onboardedUser('theme');
   await signIn(page, email);
+  await expect(page).not.toHaveURL(/\/login/);
   await page.goto('/settings');
   await page.getByRole('radio', { name: 'Light' }).or(page.getByRole('button', { name: 'Light', exact: true })).first().click();
   await expect(page.locator('html')).not.toHaveClass(/\bdark\b/);
@@ -43,6 +44,7 @@ test('theme is saved to the profile and applied on another device', async ({ pag
   try {
     const p2 = await other.newPage();
     await signIn(p2, email);
+    await expect(p2).not.toHaveURL(/\/login/);
     await p2.goto('/settings');
     await expect(p2.locator('html')).not.toHaveClass(/\bdark\b/);
   } finally {

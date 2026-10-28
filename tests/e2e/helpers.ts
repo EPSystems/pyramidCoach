@@ -74,6 +74,7 @@ export async function signUp(page: Page, email: string, password = PASSWORD) {
 export async function completeOnboarding(page: Page, name = 'E2E') {
   await expect(page).toHaveURL(/onboarding/);
   await page.getByRole('textbox').first().fill(name);
+  await page.getByRole('radio', { name: 'Male', exact: true }).click();
   await page.getByPlaceholder('72').fill('80');
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('button', { name: /Lean muscle gain/ }).click();

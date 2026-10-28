@@ -16,7 +16,8 @@ export default defineConfig({
   webServer: {
     command: `pnpm build && pnpm start -p ${PORT}`,
     url: `${baseURL}/api/health`,
-    reuseExistingServer: false,
+    // PW_REUSE_SERVER=1 lets a slow machine build + start the server once by hand (same env as below) and reuse it.
+    reuseExistingServer: !!process.env.PW_REUSE_SERVER,
     timeout: 600_000,
     env: {
       NEXT_PUBLIC_SUPABASE_URL: SUPABASE_URL,
