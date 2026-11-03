@@ -16,7 +16,7 @@ export default async function LibraryPage() {
   const cuesOf = (id: string, slug: string) => (cuesById.get(id)?.length ? cuesById.get(id)! : (EXERCISE_SEEDS.find((s) => s.slug === slug)?.cues ?? []));
   return (
     <div className="mx-auto max-w-6xl">
-      <PageHeader back={{ href: '/today', label: 'Today' }} kicker={`${exercises.length} exercises`} title="Library" />
+      <PageHeader back={{ href: '/today', label: 'Today' }} title="Library" />
       <div className="px-4 sm:px-6 lg:px-8">
         <LibraryBrowser
           exercises={exercises.map((e) => ({

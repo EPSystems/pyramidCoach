@@ -12,8 +12,7 @@ export default async function LoginPage({ searchParams }: PageProps<'/login'>) {
   return (
     <AuthShell>
       <div>
-        <p className="stamp text-muted-foreground">v1</p>
-        <h1 className="font-display mt-2 text-6xl leading-[0.85] font-extrabold uppercase">
+        <h1 className="font-display text-6xl leading-[0.85] font-extrabold uppercase">
           Pyramid
           <br />
           <span className="text-volt">Coach</span>

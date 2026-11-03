@@ -1,9 +1,9 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { requireOnboarded, loadExercises } from '@/lib/server/context';
-import { Why } from '@/components/app/bits';
+import { Group, PageHeader } from '@/components/app/bits';
 import { BodyMap } from '@/components/app/body-map';
 import { INTENSITY } from '@/lib/knowledge/constants';
 import { EXERCISE_SEEDS } from '@/lib/knowledge/exercises';
@@ -17,6 +17,15 @@ import { ExerciseActions } from './actions-ui';
 import { CustomExerciseDialog, type ExerciseDraft } from '../exercise-form';
 
 export const metadata: Metadata = { title: 'Exercise' };
+
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-12 items-center justify-between gap-4 px-4 py-2">
+      <dt className="text-muted-foreground text-[0.95rem]">{label}</dt>
+      <dd className="num text-right text-[0.95rem] font-medium">{children}</dd>
+    </div>
+  );
+}
 
 export default async function ExercisePage({ params }: PageProps<'/library/[slug]'>) {
   const { slug } = await params;
@@ -62,113 +71,87 @@ export default async function ExercisePage({ params }: PageProps<'/library/[slug
     : null;
 
   return (
-    <div className="mx-auto max-w-4xl px-4 pt-6 sm:px-6 lg:px-8">
-      <Link href="/library" className="text-muted-foreground inline-flex h-11 items-center gap-1 text-sm">
-        <ArrowLeft className="size-4" /> Library
-      </Link>
-      <div className="mt-2 space-y-4">
-        <header>
-          <p className="stamp text-muted-foreground">{CATEGORY_LABEL[ex.category]}</p>
-          <h1 className="font-display mt-1 text-5xl leading-none font-extrabold uppercase">{ex.name}</h1>
-          <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            {primary.map((m) => (
-              <span key={m.muscle} className="bg-volt text-volt-ink rounded-full px-2.5 py-1 text-xs font-semibold">
-                {MUSCLE_SHORT[m.muscle]} · 1.0
-              </span>
-            ))}
-            {secondary.map((m) => (
-              <span key={m.muscle} className="rounded-full border px-2.5 py-1 text-xs">
-                {MUSCLE_SHORT[m.muscle]} · 0.5
-              </span>
-            ))}
-            {ex.longLengthBias && (
-              <span className="bg-accent text-accent-foreground rounded-full px-2.5 py-1 text-xs font-semibold">
-                Long-length <Why ruleIds={['T-SEL-03']} label="" className="h-5 border-0 px-0" />
-              </span>
-            )}
-            <Why ruleIds={['T-VOL-05']} />
-          </div>
-        </header>
+    <div className="mx-auto max-w-4xl">
+      <PageHeader back={{ href: '/library', label: 'Library' }} kicker={CATEGORY_LABEL[ex.category]} title={ex.name} />
+      <div className="grid gap-6 px-4 sm:px-6 md:grid-cols-[1fr_16rem] lg:px-8">
+        <div className="space-y-6">
+          <Group
+            title="At a glance"
+            why={['T-VOL-05', 'T-INT-03', ...(ex.longLengthBias ? ['T-SEL-03'] : [])]}
+            footer={secondary.length > 0 ? 'A set counts in full for the main muscles and half for the others.' : undefined}
+          >
+            <dl className="divide-y">
+              <Fact label="Main muscles">{primary.map((m) => MUSCLE_SHORT[m.muscle]).join(', ')}</Fact>
+              {secondary.length > 0 && <Fact label="Also works">{secondary.map((m) => MUSCLE_SHORT[m.muscle]).join(', ')}</Fact>}
+              <Fact label="Reps">
+                {range.reps[0]}–{range.reps[1]}, stopping {range.rir[0]}–{range.rir[1]} reps short of failure
+              </Fact>
+              <Fact label="Equipment">
+                <span className="capitalize">{ex.equipment.join(' or ')}</span>
+              </Fact>
+              {row?.default_increment_kg != null && <Fact label="Load step">{fmtLoad(row.default_increment_kg, units)}</Fact>}
+              {ex.longLengthBias && <Fact label="Long-length work">Yes</Fact>}
+            </dl>
+          </Group>
 
-        <div className="grid gap-4 md:grid-cols-[1fr_16rem]">
-          <div className="space-y-4">
-            <section className="bg-card rounded-2xl border p-5">
-              <h2 className="text-lg font-semibold">Default range</h2>
-              <p className="num mt-1 text-lg">
-                {range.reps[0]}–{range.reps[1]} reps @ {range.rir[1]}–{range.rir[0]} RIR <Why ruleIds={['T-INT-03']} />
-              </p>
-              <p className="text-muted-foreground text-sm">Equipment: {ex.equipment.join(' or ')}</p>
-              {row?.default_increment_kg != null && <p className="num text-muted-foreground text-sm">Load step: {fmtLoad(row.default_increment_kg, units)}</p>}
-            </section>
-            {cues.length > 0 && (
-              <section className="bg-card rounded-2xl border p-5">
-                <h2 className="text-lg font-semibold">Cues</h2>
-                <ol className="mt-2 list-decimal space-y-1 pl-5 text-[0.95rem]">
-                  {cues.map((c) => (
-                    <li key={c}>{c}</li>
-                  ))}
-                </ol>
-                <p className="text-muted-foreground mt-3 text-xs">
-                  Lower under control (~1–4 s), lift with intent. <Why ruleIds={['T-TMP-01']} />
-                </p>
-              </section>
+          {cues.length > 0 && (
+            <Group title="Cues" why={['T-TMP-01']} footer="Lower under control (about 1–4 s) and lift with intent.">
+              <ol className="list-decimal space-y-1.5 py-3 pr-4 pl-9 text-[0.95rem]">
+                {cues.map((c) => (
+                  <li key={c}>{c}</li>
+                ))}
+              </ol>
+            </Group>
+          )}
+
+          {mistakes.length > 0 && (
+            <Group title="Common mistakes">
+              <ul className="list-disc space-y-1.5 py-3 pr-4 pl-9 text-[0.95rem]">
+                {mistakes.map((c) => (
+                  <li key={c}>{c}</li>
+                ))}
+              </ul>
+            </Group>
+          )}
+
+          {subs.length > 0 && (
+            <Group title="Substitutions">
+              {subs.slice(0, 8).map((s) => (
+                <Link key={s.id} href={`/library/${s.slug}`} className="hover:bg-muted/50 flex min-h-12 items-center justify-between gap-3 px-4 py-2 text-[0.95rem] transition-colors">
+                  {s.name}
+                  <ChevronRight className="text-muted-foreground size-5 shrink-0" aria-hidden />
+                </Link>
+              ))}
+            </Group>
+          )}
+
+          <Group title="Your history" footer={byDay.size > 0 ? `Best estimated 1-rep max: ${fmtLoad(Math.round(best * 10) / 10, units)}` : undefined}>
+            {byDay.size === 0 ? (
+              <p className="text-muted-foreground px-4 py-3 text-sm">Not logged yet. Your sets will show up here.</p>
+            ) : (
+              <ul className="num divide-y text-sm">
+                {[...byDay.entries()].slice(0, 10).map(([d, ss]) => (
+                  <li key={d} className="px-4 py-2.5">
+                    <p className="font-medium">{prettyDate(d)}</p>
+                    <p className="text-muted-foreground">
+                      {ss
+                        .sort((a, b) => a.set_index - b.set_index)
+                        .map((s) => `${fmtLoad(s.load_kg, units)} × ${s.reps}`)
+                        .join(' · ')}
+                    </p>
+                  </li>
+                ))}
+              </ul>
             )}
-            {mistakes.length > 0 && (
-              <section className="bg-card rounded-2xl border p-5">
-                <h2 className="text-lg font-semibold">Common mistakes</h2>
-                <ul className="mt-2 list-disc space-y-1 pl-5 text-[0.95rem]">
-                  {mistakes.map((c) => (
-                    <li key={c}>{c}</li>
-                  ))}
-                </ul>
-              </section>
-            )}
-            {subs.length > 0 && (
-              <section className="bg-card rounded-2xl border p-5">
-                <h2 className="text-lg font-semibold">Substitutions</h2>
-                <ul className="mt-2 flex flex-wrap gap-2">
-                  {subs.slice(0, 8).map((s) => (
-                    <li key={s.id}>
-                      <Link href={`/library/${s.slug}`} className="bg-muted hover:bg-accent inline-flex h-10 items-center rounded-lg px-3 text-sm">
-                        {s.name}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-            <section className="bg-card rounded-2xl border p-5">
-              <h2 className="text-lg font-semibold">Your history</h2>
-              {byDay.size === 0 ? (
-                <p className="text-muted-foreground mt-1 text-sm">Not logged yet.</p>
-              ) : (
-                <>
-                  <p className="num text-muted-foreground text-sm">Best e1RM: {fmtLoad(best, units)}</p>
-                  <ul className="num mt-2 divide-y text-sm">
-                    {[...byDay.entries()].slice(0, 10).map(([d, ss]) => (
-                      <li key={d} className="flex justify-between gap-3 py-1.5">
-                        <span className="whitespace-nowrap">{prettyDate(d)}</span>
-                        <span className="text-muted-foreground text-right">
-                          {ss
-                            .sort((a, b) => a.set_index - b.set_index)
-                            .map((s) => `${fmtLoad(s.load_kg, units)}×${s.reps}`)
-                            .join(' · ')}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </section>
-          </div>
-          <aside className="space-y-4">
-            <div className="bg-card rounded-2xl border p-3">
-              <BodyMap side="both" styles={styles} interactive={false} />
-            </div>
-            {draft && <CustomExerciseDialog exerciseId={ex.id} initial={draft} options={exercises.filter((e) => e.id !== ex.id).map((e) => ({ slug: e.slug, name: e.name }))} />}
-            <ExerciseActions exerciseId={ex.id} disliked={disliked} custom={custom} />
-          </aside>
+          </Group>
         </div>
+        <aside className="space-y-4">
+          <div className="bg-card rounded-2xl border p-3">
+            <BodyMap side="both" styles={styles} interactive={false} />
+          </div>
+          {draft && <CustomExerciseDialog exerciseId={ex.id} initial={draft} options={exercises.filter((e) => e.id !== ex.id).map((e) => ({ slug: e.slug, name: e.name }))} />}
+          <ExerciseActions exerciseId={ex.id} disliked={disliked} custom={custom} />
+        </aside>
       </div>
     </div>
   );

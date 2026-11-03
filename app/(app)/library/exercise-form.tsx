@@ -99,12 +99,12 @@ export function TraitFields({ value, onChange, incrementHint }: { value: Traits;
           ))}
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="space-y-1">
         <label htmlFor="ex-increment" className="text-sm font-medium">
           Load step (kg)
         </label>
-        <Input id="ex-increment" inputMode="decimal" value={value.increment} onChange={(e) => onChange({ ...value, increment: e.target.value })} placeholder="default" className="num h-11 w-24" />
-        <span className="text-muted-foreground text-xs">{incrementHint ?? 'Empty = your equipment setting.'}</span>
+        <Input id="ex-increment" inputMode="decimal" value={value.increment} onChange={(e) => onChange({ ...value, increment: e.target.value })} placeholder="default" className="num h-11" />
+        <p className="text-muted-foreground text-xs">{incrementHint ?? 'Leave empty to use your equipment setting.'}</p>
       </div>
     </>
   );
@@ -149,15 +149,15 @@ export function CustomExerciseDialog({ exerciseId, initial, options }: { exercis
             <Pencil /> Edit exercise
           </Button>
         ) : (
-          <Button className="h-11">
-            <Plus /> Custom
+          <Button variant="outline" aria-label="Add custom exercise">
+            <Plus /> Add
           </Button>
         )}
       </DialogTrigger>
       <DialogContent className="max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">{exerciseId ? 'Edit exercise' : 'Custom exercise'}</DialogTitle>
-          <DialogDescription>Visible only to you. Muscles decide how sets are counted (1.0 primary, 0.5 secondary).</DialogDescription>
+          <DialogDescription>Visible only to you. A set counts in full for its primary muscles and half for its secondary ones.</DialogDescription>
         </DialogHeader>
         <Input value={d.name} onChange={(e) => set({ name: e.target.value })} placeholder="Name" className="h-11" aria-label="Name" />
         <div className="grid grid-cols-2 gap-2">

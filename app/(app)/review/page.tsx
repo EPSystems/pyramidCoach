@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Check } from 'lucide-react';
 import { requireOnboarded, loadExercises } from '@/lib/server/context';
 import { buildWeeklyState, nutritionReviewFor } from '@/lib/server/review';
 import { autofillReview, reviewWeekFor } from '@/lib/engine/fatigue';
@@ -6,11 +7,10 @@ import { loggedMuscleSets } from '@/lib/engine/counting';
 import { addDays, isoWeekday } from '@/lib/engine/util';
 import { TRACKED_MUSCLES, type ReviewKey } from '@/lib/engine/types';
 import { MUSCLE_SHORT } from '@/lib/knowledge/muscles';
-import { PageHeader, Why } from '@/components/app/bits';
+import { Disclosure, PageHeader, Stat, Why } from '@/components/app/bits';
 import { ProposalCard, type ProposalView } from '@/components/app/proposal-card';
 import { prettyDate } from '@/lib/utils/dates';
 import { ReviewForm } from './review-form';
-import { cn } from '@/lib/utils';
 
 export const metadata: Metadata = { title: 'Weekly review' };
 
@@ -77,31 +77,24 @@ export default async function ReviewPage() {
 
           <section className="bg-card rounded-2xl border p-5">
             <h2 className="text-lg font-semibold">Week summary</h2>
-            <dl className="num mt-3 grid grid-cols-3 gap-3">
-              <div>
-                <dt className="stamp text-muted-foreground">Sessions</dt>
-                <dd className="font-display text-3xl font-bold">
-                  {done}/{planned}
-                </dd>
-              </div>
-              <div>
-                <dt className="stamp text-muted-foreground">Working sets</dt>
-                <dd className="font-display text-3xl font-bold">{weekSets.length}</dd>
-              </div>
-              <div>
-                <dt className="stamp text-muted-foreground">On target</dt>
-                <dd className="font-display text-3xl font-bold">
-                  {onTarget.length}/{TRACKED_MUSCLES.length}
-                </dd>
-              </div>
-            </dl>
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {TRACKED_MUSCLES.map((m) => (
-                <span key={m} className={cn('rounded-full px-2.5 py-1 text-xs', onTarget.includes(m) ? 'bg-volt/20 text-foreground' : 'bg-muted text-muted-foreground')}>
-                  {MUSCLE_SHORT[m]} {Math.round(logged[m] * 10) / 10}
-                </span>
-              ))}
+            <div className="mt-3 grid grid-cols-3 gap-3">
+              <Stat label="Sessions" value={`${done}/${planned}`} />
+              <Stat label="Working sets" value={weekSets.length} />
+              <Stat label="On target" value={`${onTarget.length}/${TRACKED_MUSCLES.length}`} />
             </div>
+            <Disclosure summary="Sets per muscle" className="-mx-5 -mb-5 mt-3 border-t">
+              <ul className="num divide-y text-sm">
+                {TRACKED_MUSCLES.map((m) => (
+                  <li key={m} className="flex items-center justify-between gap-3 py-2">
+                    <span className="flex items-center gap-2">
+                      {MUSCLE_SHORT[m]}
+                      {onTarget.includes(m) && <Check className="text-ok size-4" aria-label="on target" />}
+                    </span>
+                    <span className="text-muted-foreground">{Math.round(logged[m] * 10) / 10}</span>
+                  </li>
+                ))}
+              </ul>
+            </Disclosure>
           </section>
 
           {nutritionNotes.length > 0 && (
@@ -119,23 +112,23 @@ export default async function ReviewPage() {
           )}
         </div>
 
-        <div className="space-y-4">
+        {/* With decisions waiting, they come first on a phone: that's the job of this screen. */}
+        <div className={pending.length > 0 ? 'order-first space-y-4 lg:order-none' : 'space-y-4'}>
           <h2 className="text-lg font-semibold">
-            Proposals {pending.length > 0 && <span className="text-volt">({pending.length})</span>}
+            Proposals {pending.length > 0 && <span className="text-muted-foreground font-normal">({pending.length})</span>}
           </h2>
           {pending.length === 0 && <p className="bg-card text-muted-foreground rounded-2xl border p-5 text-sm">Nothing waiting. Submit your weekly review to get this week’s recommendations.</p>}
           {pending.map((p) => (
             <ProposalCard key={p.id} p={view(p)} />
           ))}
           {decided.length > 0 && (
-            <details className="group">
-              <summary className="text-muted-foreground cursor-pointer text-sm">Recent decisions</summary>
-              <div className="mt-3 space-y-3">
+            <Disclosure summary="Recent decisions" className="bg-card rounded-2xl border">
+              <div className="space-y-3">
                 {decided.map((p) => (
                   <ProposalCard key={p.id} p={view(p)} />
                 ))}
               </div>
-            </details>
+            </Disclosure>
           )}
         </div>
       </div>

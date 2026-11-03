@@ -43,7 +43,7 @@ export function LoginForm({ next }: { next?: string }) {
             <Label htmlFor="password" className="stamp text-muted-foreground">
               Password
             </Label>
-            <Link href="/forgot-password" className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline">
+            <Link href="/forgot-password" className="text-muted-foreground hover:text-foreground -my-3 inline-flex h-11 items-center text-sm underline-offset-4 hover:underline">
               Forgot password?
             </Link>
           </div>

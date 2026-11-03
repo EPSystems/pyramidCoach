@@ -12,7 +12,6 @@ export default async function SignupPage({ searchParams }: PageProps<'/signup'>)
   return (
     <AuthShell>
       <AuthHeading
-        kicker="Free · v1"
         title={
           <>
             Start <span className="text-volt">training</span>

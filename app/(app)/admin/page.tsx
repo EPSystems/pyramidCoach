@@ -80,7 +80,7 @@ export default async function AdminPage() {
           <ul className="mt-2 max-h-96 divide-y overflow-y-auto text-sm">
             {(rules ?? []).map((r) => (
               <li key={r.id} className="grid grid-cols-[6rem_1fr] gap-2 py-1.5">
-                <span className="stamp">
+                <span className="rule-id">
                   {r.id}
                   <span className="text-muted-foreground block">
                     {r.source}

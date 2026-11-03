@@ -104,11 +104,11 @@ export function BodyMap({ side = 'both', className, interactive = true, ...rest 
       <div className={cn('grid grid-cols-2 gap-2', className)}>
         <div>
           <Figure view="front" interactive={interactive} {...rest} />
-          <p className="stamp text-muted-foreground text-center">Front</p>
+          <p className="stamp text-muted-foreground pb-1 text-center">Front</p>
         </div>
         <div>
           <Figure view="back" interactive={interactive} {...rest} />
-          <p className="stamp text-muted-foreground text-center">Back</p>
+          <p className="stamp text-muted-foreground pb-1 text-center">Back</p>
         </div>
       </div>
     );

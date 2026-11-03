@@ -36,6 +36,7 @@ export default async function CheckinPage() {
           <section className="bg-card rounded-2xl border p-5">
             <h2 className="text-lg font-semibold">Last 7 days</h2>
             <table className="num mt-2 w-full text-sm">
+              <caption className="sr-only">Sleep hours, energy, stress and sore areas for the last 7 days</caption>
               <thead className="text-muted-foreground text-left text-xs">
                 <tr>
                   <th className="py-1 font-medium">Day</th>
@@ -48,7 +49,7 @@ export default async function CheckinPage() {
               <tbody className="divide-y">
                 {recent!.map((r) => (
                   <tr key={r.day}>
-                    <td className="py-1.5">{prettyDate(r.day)}</td>
+                    <td className="py-2.5 pr-2 whitespace-nowrap">{prettyDate(r.day, { weekday: false })}</td>
                     <td>{r.sleep_hours ?? '-'}</td>
                     <td>{r.energy ?? '-'}</td>
                     <td>{r.stress ?? '-'}</td>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { unstable_rethrow } from 'next/navigation';
 import { Play, Save, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
@@ -49,6 +49,11 @@ export function GenerateForm({ initialMuscle, units, today }: { initialMuscle: T
   const existing = preview?.existing ?? [];
   const canReplace = existing.some((x) => x.status === 'planned');
   const mustChoose = existing.length > 0 && !onExisting;
+  // On a phone the preview lands below the form, out of sight, so bring it into view.
+  const previewRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (result) previewRef.current?.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  }, [result]);
 
   const run = () =>
     start(async () => {
@@ -133,19 +138,19 @@ export function GenerateForm({ initialMuscle, units, today }: { initialMuscle: T
           <label htmlFor="gen-date" className="text-sm font-medium">
             Day
           </label>
-          <Input id="gen-date" type="date" value={date} min={today} max={addDays(today, 13)} onChange={(e) => setDate(e.target.value || today)} className="h-11 w-48" />
+          <Input id="gen-date" type="date" value={date} min={today} max={addDays(today, 13)} onChange={(e) => setDate(e.target.value || today)} className="h-11 w-full sm:w-48" />
         </div>
         <Button size="lg" className="w-full" onClick={run} disabled={pending || noEquipment || (focusMode === 'pick' && !picked.length)}>
           <Sparkles /> {pending ? 'Generating…' : 'Preview workout'}
         </Button>
       </div>
 
-      <section className="bg-card h-fit rounded-2xl border p-5" aria-live="polite">
+      <section ref={previewRef} className={preview ? 'bg-card h-fit scroll-mt-4 rounded-2xl border p-5' : 'bg-card hidden h-fit rounded-2xl border p-5 lg:block'} aria-live="polite">
         {!preview ? (
           <p className="text-muted-foreground py-10 text-center text-sm">Your workout preview appears here.</p>
         ) : (
           <>
-            <p className="stamp text-muted-foreground">~{preview.estMinutes} min</p>
+            <p className="stamp text-muted-foreground">About {preview.estMinutes} min</p>
             <h2 className="text-xl font-semibold">{preview.title}</h2>
             <ol className="mt-3 divide-y">
               {preview.exercises.map((e, i) => (
@@ -182,12 +187,14 @@ export function GenerateForm({ initialMuscle, units, today }: { initialMuscle: T
                 {onExisting === 'replace' && <p className="text-muted-foreground text-xs">The planned session is marked skipped{existing.some((x) => x.status !== 'planned') ? '; started or finished ones stay' : ''}.</p>}
               </div>
             )}
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <Button variant="outline" disabled={pending || !preview.exercises.length || mustChoose} onClick={() => save(false)}>
+            <div className="mt-4 grid gap-2">
+              {isToday && (
+                <Button size="lg" disabled={pending || !preview.exercises.length || mustChoose} onClick={() => save(true)}>
+                  <Play /> Start now
+                </Button>
+              )}
+              <Button size="lg" variant={isToday ? 'outline' : 'default'} disabled={pending || !preview.exercises.length || mustChoose} onClick={() => save(false)}>
                 <Save /> {isToday ? 'Save for later' : `Save for ${prettyDate(date)}`}
-              </Button>
-              <Button disabled={pending || !preview.exercises.length || mustChoose || !isToday} onClick={() => save(true)}>
-                <Play /> Start now
               </Button>
             </div>
           </>

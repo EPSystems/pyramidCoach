@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { requireOnboarded } from '@/lib/server/context';
 import { latestNutrition } from '@/lib/server/queries';
 import { bodyweightSeries } from '@/lib/server/bodyweight';
-import { PageHeader, Stat, Why } from '@/components/app/bits';
+import { Disclosure, Group, PageHeader, Stat, Why } from '@/components/app/bits';
 import { BodyweightChart } from '@/components/app/charts';
 import { ProposalCard, type ProposalView } from '@/components/app/proposal-card';
 import { daysBetween } from '@/lib/engine/util';
@@ -12,7 +12,6 @@ import type { Status } from '@/lib/engine/types';
 import { fmtNum, toDisplay } from '@/lib/utils/units';
 import { prettyDate } from '@/lib/utils/dates';
 import { PhaseEditor, RecalculateButton, WeighInForm } from './client';
-import { cn } from '@/lib/utils';
 
 export const metadata: Metadata = { title: 'Nutrition' };
 
@@ -43,42 +42,53 @@ export default async function NutritionPage() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <PageHeader kicker={`${PHASE_LABEL[phase]} · week ${weeksIn + 1}`} title="Nutrition" />
-      <div className="grid gap-4 px-4 sm:px-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] lg:px-8">
-        <div className="space-y-4">
+      <PageHeader title="Nutrition" />
+      <div className="grid gap-6 px-4 sm:px-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] lg:px-8">
+        <div className="space-y-6">
           {nt && (
             <section className="bg-card overflow-hidden rounded-2xl border">
-              <div className="knurl border-b px-5 py-4">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="stamp text-muted-foreground">Daily target · from {prettyDate(nt.effective_from)}</p>
+              <div className="p-5">
+                <p className="text-muted-foreground text-sm">Daily target</p>
+                <p className="font-display num mt-1 text-6xl leading-none font-extrabold">
+                  {fmtNum(nt.kcal)} <span className="text-muted-foreground font-sans text-xl font-normal">kcal</span>
+                </p>
+                <p className="num text-muted-foreground mt-2 text-sm">
+                  Anywhere from {fmtNum(nt.kcal_low)} to {fmtNum(nt.kcal_high)} is on target.
+                </p>
+                <div className="mt-5 grid grid-cols-3 gap-4">
+                  <Stat label="Protein" value={`${nt.protein_g}g`} sub="at least" />
+                  <Stat label="Fat" value={`${nt.fat_g}g`} sub={`min ${nt.fat_min_g}g`} />
+                  <Stat label="Carbs" value={`${nt.carbs_g}g`} sub={`min ${nt.carbs_min_g}g`} />
+                </div>
+              </div>
+              <Disclosure summary="How this was worked out" className="border-t">
+                <dl className="num divide-y text-sm">
+                  <div className="flex justify-between gap-4 py-2">
+                    <dt className="text-muted-foreground">In effect since</dt>
+                    <dd>{prettyDate(nt.effective_from)}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4 py-2">
+                    <dt className="text-muted-foreground">Free calories after minimums</dt>
+                    <dd>{fmtNum(Math.max(0, nt.kcal - (nt.protein_g * 4 + nt.fat_min_g * 9 + nt.carbs_min_g * 4)))}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4 py-2">
+                    <dt className="text-muted-foreground">Included for sports</dt>
+                    <dd>about {nt.sport_kcal_per_day} a day</dd>
+                  </div>
+                  {nt.bodyweight_kg != null && !hide && (
+                    <div className="flex justify-between gap-4 py-2">
+                      <dt className="text-muted-foreground">Based on 7-day average weight</dt>
+                      <dd>
+                        {toDisplay(Number(nt.bodyweight_kg), units)} {units}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                  <Why ruleIds={['N-MNT-01', 'N-MNT-02', 'N-RAT-03', 'N-MAC-01', 'N-PRO-01', 'N-FAT-01', 'N-CHO-01', 'N-SPT-01', 'N-SPT-03']} />
                   <RecalculateButton />
                 </div>
-                <p className="font-display num mt-1 text-6xl leading-none font-extrabold">
-                  {fmtNum(nt.kcal)} <span className="text-muted-foreground text-2xl">kcal</span>
-                </p>
-                <p className="num text-muted-foreground mt-1 text-sm">
-                  Anywhere in {fmtNum(nt.kcal_low)}–{fmtNum(nt.kcal_high)} is on target <Why ruleIds={['N-MNT-01', 'N-MNT-02', 'N-RAT-03']} />
-                </p>
-              </div>
-              <div className="grid grid-cols-3 gap-4 p-5">
-                <Stat label="Protein" value={`${nt.protein_g}g`} sub="at least" />
-                <Stat label="Fat" value={`${nt.fat_g}g`} sub={`min ${nt.fat_min_g}g`} />
-                <Stat label="Carbs" value={`${nt.carbs_g}g`} sub={`min ${nt.carbs_min_g}g`} />
-              </div>
-              <div className="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 border-t px-5 py-3 text-xs">
-                <span>
-                  Flexible calories above minimums: <span className="text-foreground num font-semibold">{fmtNum(Math.max(0, nt.kcal - (nt.protein_g * 4 + nt.fat_min_g * 9 + nt.carbs_min_g * 4)))}</span>
-                </span>
-                <span>
-                  Sports included: <span className="text-foreground num font-semibold">~{nt.sport_kcal_per_day}/day</span>
-                </span>
-                {nt.bodyweight_kg != null && !hide && (
-                  <span>
-                    Based on: <span className="text-foreground num font-semibold">{toDisplay(Number(nt.bodyweight_kg), units)} {units}</span> (7-day average)
-                  </span>
-                )}
-                <Why ruleIds={['N-MAC-01', 'N-PRO-01', 'N-FAT-01', 'N-CHO-01', 'N-SPT-01', 'N-SPT-03']} />
-              </div>
+              </Disclosure>
             </section>
           )}
 
@@ -89,75 +99,83 @@ export default async function NutritionPage() {
             />
           ))}
 
-          <section className="bg-card rounded-2xl border p-5">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <section className="bg-card overflow-hidden rounded-2xl border">
+            <div className="p-5">
               <h2 className="text-lg font-semibold">Bodyweight</h2>
-              <WeighInForm units={units} />
+              {hide ? (
+                <p className="text-muted-foreground text-sm">
+                  Trend: <span className="text-foreground font-medium capitalize">{bw.direction}</span>
+                </p>
+              ) : (
+                <p className="num text-muted-foreground text-sm">
+                  {bw.latest ? (
+                    <>
+                      Latest {toDisplay(bw.latest.kg, units)} {units} on {prettyDate(bw.latest.day)}
+                      {bw.lastRate != null && <> · last week {bw.lastRate >= 0 ? '+' : ''}{bw.lastRate.toFixed(2)}%</>}
+                    </>
+                  ) : (
+                    'No weigh-ins yet.'
+                  )}
+                </p>
+              )}
+              <div className="mt-3">
+                <WeighInForm units={units} />
+              </div>
+              <div className="mt-4">
+                <BodyweightChart data={bw.points} unit={units} hideNumbers={hide} />
+              </div>
             </div>
-            {hide ? (
-              <p className="mt-2 text-sm">
-                Trend: <span className="font-semibold capitalize">{bw.direction}</span>
-              </p>
-            ) : (
-              <p className="text-muted-foreground mt-1 text-sm">
-                {bw.latest ? (
-                  <>
-                    Latest {toDisplay(bw.latest.kg, units)} {units} on {prettyDate(bw.latest.day)}
-                    {bw.lastRate != null && <> · last week {bw.lastRate >= 0 ? '+' : ''}{bw.lastRate.toFixed(2)}%</>}
-                  </>
-                ) : (
-                  'No weigh-ins yet.'
-                )}
-              </p>
+            {bw.weeks.length > 0 && (
+              <Disclosure summary="Weekly averages" className="border-t">
+                <ul className="num divide-y text-sm">
+                  {bw.weeks.slice(-6).map((w) => (
+                    <li key={w.weekStart} className="flex items-center justify-between gap-3 py-2">
+                      <span>Week of {prettyDate(w.weekStart, { weekday: false })}</span>
+                      <span className="text-right">
+                        {hide ? '•' : `${toDisplay(w.avg, units)} ${units}`}
+                        <span className="text-muted-foreground"> · {w.n} {w.n === 1 ? 'weigh-in' : 'weigh-ins'}</span>
+                        {w.lowData && <span className="text-warn block">Too few to trust</span>}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </Disclosure>
             )}
-            <div className="mt-3">
-              <BodyweightChart data={bw.points} unit={units} hideNumbers={hide} />
-            </div>
-            <ul className="num mt-3 flex flex-wrap gap-1.5 text-xs">
-              {bw.weeks.slice(-6).map((w) => (
-                <li key={w.weekStart} className={cn('rounded-full px-2.5 py-1', w.lowData ? 'bg-warn/15 text-warn' : 'bg-muted')}>
-                  {prettyDate(w.weekStart, { weekday: false })}: {hide ? '•' : `${toDisplay(w.avg, units)}`} ({w.n}){w.lowData && ' low data'}
-                </li>
-              ))}
-            </ul>
           </section>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-6">
           <section className="bg-card rounded-2xl border p-5">
-            <h2 className="text-lg font-semibold">Phase</h2>
-            <div className="mt-3 grid grid-cols-3 gap-3">
-              <Stat label="Phase" value={PHASE_LABEL[phase]} />
-              <Stat label="Target" value={phase === 'maintain' ? '±0' : `${rate}%`} sub={phase === 'loss' ? 'per week' : phase === 'gain' ? 'per month' : 'stable'} />
-              <Stat label="Weeks in" value={weeksIn + 1} />
-            </div>
+            <h2 className="text-lg font-semibold">{PHASE_LABEL[phase]}</h2>
+            <p className="num text-muted-foreground text-sm">
+              Week {weeksIn + 1}
+              {phase !== 'maintain' && <> · {rate}% per {phase === 'loss' ? 'week' : 'month'}</>}
+            </p>
             <div className="mt-4">
-              <p className="stamp text-muted-foreground">
-                4:1 ratio · build vs cut <Why ruleIds={['N-PHS-02']} />
-              </p>
-              <div className="bg-muted mt-1.5 flex h-3 overflow-hidden rounded-full" role="img" aria-label={`${buildDays} days gaining or maintaining, ${cutDays} days cutting`}>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-medium">Building compared with cutting</p>
+                <Why ruleIds={['N-PHS-02']} />
+              </div>
+              <div className="bg-muted mt-2 flex h-3 overflow-hidden rounded-full" role="img" aria-label={`${buildDays} days gaining or maintaining, ${cutDays} days cutting`}>
                 <div className="bg-chart-1" style={{ width: `${(buildDays / Math.max(1, buildDays + cutDays)) * 100}%` }} />
                 <div className="bg-warn" style={{ width: `${(cutDays / Math.max(1, buildDays + cutDays)) * 100}%` }} />
               </div>
-              <p className="num text-muted-foreground mt-1 text-xs">
-                {Math.round(buildDays / 7)} wk build/maintain · {Math.round(cutDays / 7)} wk cut
-                {cutDays > 0 && buildDays / cutDays < NUTRITION.gainToCutRatio && <span className="text-warn"> · spend more time building before the next cut</span>}
+              <p className="num text-muted-foreground mt-1.5 text-sm">
+                {Math.round(buildDays / 7)} weeks building or maintaining · {Math.round(cutDays / 7)} weeks cutting
               </p>
+              {cutDays > 0 && buildDays / cutDays < NUTRITION.gainToCutRatio && <p className="text-warn mt-1 text-sm">Spend more time building before your next cut.</p>}
             </div>
             <PhaseEditor phase={phase} rate={rate} status={settings.training_status as Status} />
           </section>
 
-          <section className="space-y-3">
+          <Group title="Good to know">
             {GUIDES.map((g) => (
-              <div key={g.title} className="bg-card rounded-2xl border p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="font-semibold">{g.title}</h3>
-                  {g.rules.length > 0 && <Why ruleIds={g.rules} />}
-                </div>
-                <p className="text-muted-foreground mt-1 text-sm">{g.body}</p>
-              </div>
+              <Disclosure key={g.title} summary={g.title}>
+                <p className="text-muted-foreground text-sm">{g.body}</p>
+                {g.rules.length > 0 && <Why ruleIds={g.rules} className="mt-2" />}
+              </Disclosure>
             ))}
-          </section>
+          </Group>
         </div>
       </div>
     </div>

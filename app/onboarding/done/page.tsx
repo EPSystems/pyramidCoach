@@ -1,13 +1,14 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, TriangleAlert } from 'lucide-react';
 import { getUserContext } from '@/lib/server/context';
 import { Button } from '@/components/ui/button';
 import { BodyMap } from '@/components/app/body-map';
-import { Why } from '@/components/app/bits';
+import { Stat, Why } from '@/components/app/bits';
 import { mixVolt } from '@/components/app/colors';
 import { prettyDate } from '@/lib/utils/dates';
+import { fmtNum } from '@/lib/utils/units';
 import { MUSCLE_SHORT } from '@/lib/knowledge/muscles';
 import { SPLITS } from '@/lib/engine/split';
 import type { MuscleId } from '@/lib/engine/types';
@@ -33,13 +34,14 @@ export default async function DonePage() {
   );
 
   return (
-    <main className="relative z-10 mx-auto max-w-2xl px-4 py-8 sm:px-6">
+    <main className="relative z-10 mx-auto max-w-2xl px-4 pt-8 pb-28 sm:px-6">
+      {/* The one place an entrance animation earns its keep: this is the app's first payoff. */}
       <div className="rise space-y-6">
         <div>
-          <p className="stamp text-muted-foreground">Plan ready</p>
-          <h1 className="font-display mt-1 text-5xl leading-none font-extrabold uppercase">
+          <h1 className="font-display text-5xl leading-none font-extrabold uppercase">
             Your first <span className="text-volt">week</span>
           </h1>
+          <p className="text-muted-foreground mt-2">Your plan is ready. Here’s what it looks like, and why.</p>
         </div>
 
         <section className="bg-card rounded-2xl border p-5">
@@ -48,10 +50,10 @@ export default async function DonePage() {
           </h2>
           <ul className="mt-3 space-y-2">
             {firstWeek.map((s) => (
-              <li key={s.id} className="flex items-baseline justify-between gap-3 border-b border-dashed pb-2 last:border-0">
-                <span className="font-medium">{prettyDate(s.scheduled_on)}</span>
-                <span className="text-muted-foreground flex-1 truncate text-right text-sm">
-                  {s.title} · ~{s.est_minutes} min {s.kind === 'intro' && <span className="stamp text-volt ml-1">intro</span>}
+              <li key={s.id} className="border-b pb-2 last:border-0">
+                <span className="block font-medium">{s.title}</span>
+                <span className="text-muted-foreground block text-sm">
+                  {prettyDate(s.scheduled_on)} · about {s.est_minutes} min{s.kind === 'intro' && ' · easier intro week'}
                 </span>
               </li>
             ))}
@@ -65,8 +67,8 @@ export default async function DonePage() {
             ))}
           </ul>
           {warnings.map((w, i) => (
-            <p key={i} className="text-warn mt-3 text-sm">
-              ⚠ {w.message}
+            <p key={i} className="text-warn mt-3 flex gap-2 text-sm">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden /> {w.message}
             </p>
           ))}
         </section>
@@ -92,41 +94,27 @@ export default async function DonePage() {
         {nt && (
           <section className="bg-card rounded-2xl border p-5">
             <h2 className="text-lg font-semibold">Daily nutrition targets</h2>
-            <div className="num mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <div>
-                <p className="stamp text-muted-foreground">Calories</p>
-                <p className="font-display text-3xl font-bold">{nt.kcal}</p>
-                <p className="text-muted-foreground text-xs">
-                  {nt.kcal_low}–{nt.kcal_high}
-                </p>
-              </div>
-              <div>
-                <p className="stamp text-muted-foreground">Protein</p>
-                <p className="font-display text-3xl font-bold">{nt.protein_g}g</p>
-                <p className="text-muted-foreground text-xs">at least</p>
-              </div>
-              <div>
-                <p className="stamp text-muted-foreground">Fat</p>
-                <p className="font-display text-3xl font-bold">{nt.fat_g}g</p>
-                <p className="text-muted-foreground text-xs">min {nt.fat_min_g}g</p>
-              </div>
-              <div>
-                <p className="stamp text-muted-foreground">Carbs</p>
-                <p className="font-display text-3xl font-bold">{nt.carbs_g}g</p>
-                <p className="text-muted-foreground text-xs">min {nt.carbs_min_g}g</p>
-              </div>
+            <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <Stat label="Calories" value={fmtNum(nt.kcal)} sub={`${fmtNum(nt.kcal_low)}–${fmtNum(nt.kcal_high)}`} />
+              <Stat label="Protein" value={`${nt.protein_g}g`} sub="at least" />
+              <Stat label="Fat" value={`${nt.fat_g}g`} sub={`min ${nt.fat_min_g}g`} />
+              <Stat label="Carbs" value={`${nt.carbs_g}g`} sub={`min ${nt.carbs_min_g}g`} />
             </div>
-            <p className="text-muted-foreground mt-3 text-xs">
-              Includes ~{nt.sport_kcal_per_day} kcal/day for sports. The estimate is refined from your weigh-ins. <Why ruleIds={['N-MNT-03', 'N-SPT-03']} />
+            <p className="text-muted-foreground mt-3 text-sm">
+              Includes about {nt.sport_kcal_per_day} kcal a day for sports. The estimate is refined from your weigh-ins. <Why ruleIds={['N-MNT-03', 'N-SPT-03']} />
             </p>
           </section>
         )}
 
-        <Button asChild size="lg" className="w-full">
-          <Link href="/today">
-            Start <ArrowRight />
-          </Link>
-        </Button>
+      </div>
+      <div className="bar-material pb-safe fixed inset-x-0 bottom-0 z-20 border-t">
+        <div className="mx-auto max-w-2xl px-4 py-3 sm:px-6">
+          <Button asChild size="lg" className="w-full">
+            <Link href="/today">
+              Go to Today <ArrowRight />
+            </Link>
+          </Button>
+        </div>
       </div>
     </main>
   );

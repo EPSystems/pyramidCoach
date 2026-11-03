@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ChevronLeft, HelpCircle, Minus, Plus } from 'lucide-react';
+import { ChevronDown, ChevronLeft, HelpCircle, Minus, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { RULES, ruleSourceLabel } from '@/lib/knowledge/rules';
@@ -105,7 +105,7 @@ export function Segmented<T extends string | number>({
     (e.currentTarget.children[next] as HTMLElement | undefined)?.focus();
   };
   return (
-    <div className={cn('bg-muted/70 flex gap-1 rounded-xl p-1', className)} role="radiogroup" aria-label={label} onKeyDown={onKeyDown}>
+    <div className={cn('bg-muted/70 flex flex-wrap gap-1 rounded-xl p-1', className)} role="radiogroup" aria-label={label} onKeyDown={onKeyDown}>
       {options.map((o, i) => (
         <button
           key={String(o.value)}
@@ -115,7 +115,7 @@ export function Segmented<T extends string | number>({
           tabIndex={i === Math.max(current, 0) ? 0 : -1}
           onClick={() => onChange(o.value)}
           className={cn(
-            'num h-11 min-w-0 flex-1 rounded-lg px-2 text-sm font-semibold transition-all',
+            'num h-11 min-w-fit flex-1 rounded-lg px-2 text-sm font-semibold transition-all',
             value === o.value ? 'bg-volt text-volt-ink shadow-sm' : 'text-muted-foreground hover:text-foreground',
           )}
         >
@@ -123,6 +123,81 @@ export function Segmented<T extends string | number>({
         </button>
       ))}
     </div>
+  );
+}
+
+const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+export const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+/** Weekdays as toggles; values are ISO weekdays (1 = Monday). */
+export function DayPicker({ value, onChange, label }: { value: number[]; onChange: (v: number[]) => void; label: string }) {
+  return (
+    <div className="grid grid-cols-7 gap-0.5" role="group" aria-label={label}>
+      {DAY_LETTERS.map((d, i) => (
+        <button
+          key={i}
+          type="button"
+          aria-pressed={value.includes(i + 1)}
+          aria-label={DAY_NAMES[i]}
+          onClick={() => onChange(value.includes(i + 1) ? value.filter((x) => x !== i + 1) : [...value, i + 1])}
+          className={cn('h-11 rounded-lg text-sm font-semibold transition-colors', value.includes(i + 1) ? 'bg-volt text-volt-ink' : 'bg-muted text-muted-foreground')}
+        >
+          {d}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** An inset grouped list, as in the system Settings app: heading above, rows in one card, an explanation below. */
+export function Group({ title, why, footer, children, className, id }: { title?: React.ReactNode; why?: string[]; footer?: React.ReactNode; children: React.ReactNode; className?: string; id?: string }) {
+  return (
+    <section className={cn('scroll-mt-4', className)} id={id}>
+      {(title || why) && (
+        <div className="mb-2 flex items-center justify-between gap-2 px-1">
+          {title && <h2 className="text-lg font-semibold">{title}</h2>}
+          {why && <Why ruleIds={why} />}
+        </div>
+      )}
+      <div className="bg-card divide-y overflow-hidden rounded-2xl border">{children}</div>
+      {footer && <div className="text-muted-foreground mt-2 px-1 text-sm">{footer}</div>}
+    </section>
+  );
+}
+
+/** One row of a Group. `inline` keeps a short control beside its label; longer controls sit below it. */
+export function Row({ label, hint, inline, children }: { label: React.ReactNode; hint?: React.ReactNode; inline?: boolean; children: React.ReactNode }) {
+  const text = (
+    <div className="min-w-0">
+      <p className="text-[0.95rem] font-medium">{label}</p>
+      {hint && <div className="text-muted-foreground mt-0.5 text-sm">{hint}</div>}
+    </div>
+  );
+  if (inline)
+    return (
+      <div className="flex min-h-14 items-center justify-between gap-4 px-4 py-2">
+        {text}
+        <div className="shrink-0">{children}</div>
+      </div>
+    );
+  return (
+    <div className="space-y-2 px-4 py-3">
+      {text}
+      {children}
+    </div>
+  );
+}
+
+/** Extra detail that stays out of the way until it's asked for. */
+export function Disclosure({ summary, children, open, className }: { summary: React.ReactNode; children: React.ReactNode; open?: boolean; className?: string }) {
+  return (
+    <details className={cn('group/disclosure', className)} open={open}>
+      <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2 text-[0.95rem] font-medium [&::-webkit-details-marker]:hidden">
+        <span className="min-w-0">{summary}</span>
+        <ChevronDown className="text-muted-foreground size-5 shrink-0 transition-transform group-open/disclosure:rotate-180" aria-hidden />
+      </summary>
+      <div className="px-4 pb-4">{children}</div>
+    </details>
   );
 }
 

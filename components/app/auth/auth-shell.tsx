@@ -5,7 +5,7 @@ import { PyramidMark } from '@/components/app/logo';
 export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
     <main className="relative z-10 mx-auto flex min-h-dvh max-w-md flex-col justify-between px-5 py-10">
-      <div className="rise space-y-8">
+      <div className="space-y-8">
         <Link href="/login" aria-label="Pyramid Coach: sign in" className="inline-block">
           <PyramidMark className="size-14" />
         </Link>
@@ -13,12 +13,11 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
       </div>
       <footer className="text-muted-foreground mt-10 space-y-2 text-xs leading-relaxed">
         <p>General training and nutrition guidance, not a substitute for a doctor or physiotherapist.</p>
-        <nav aria-label="Legal" className="flex gap-2">
-          <Link href="/terms" className="underline-offset-4 hover:underline">
+        <nav aria-label="Legal" className="-ml-2 flex">
+          <Link href="/terms" className="inline-flex h-11 items-center px-2 underline-offset-4 hover:underline">
             Terms
           </Link>
-          <span aria-hidden>·</span>
-          <Link href="/privacy" className="underline-offset-4 hover:underline">
+          <Link href="/privacy" className="inline-flex h-11 items-center px-2 underline-offset-4 hover:underline">
             Privacy
           </Link>
         </nav>
@@ -27,11 +26,10 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function AuthHeading({ kicker, title, children }: { kicker: string; title: React.ReactNode; children?: React.ReactNode }) {
+export function AuthHeading({ title, children }: { title: React.ReactNode; children?: React.ReactNode }) {
   return (
     <div>
-      <p className="stamp text-muted-foreground">{kicker}</p>
-      <h1 className="font-display mt-2 text-5xl leading-[0.9] font-extrabold uppercase">{title}</h1>
+      <h1 className="font-display text-5xl leading-[0.9] font-extrabold uppercase">{title}</h1>
       {children && <div className="text-muted-foreground mt-4 max-w-xs text-[0.95rem] leading-relaxed">{children}</div>}
     </div>
   );

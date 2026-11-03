@@ -18,7 +18,7 @@ import {
 } from 'recharts';
 import { prettyDate } from '@/lib/utils/dates';
 
-const AXIS = { stroke: 'var(--muted-foreground)', fontSize: 11, tickLine: false, axisLine: false } as const;
+const AXIS = { stroke: 'var(--muted-foreground)', fontSize: 12, tickLine: false, axisLine: false } as const;
 const GRID = <CartesianGrid stroke="var(--border)" strokeDasharray="2 4" vertical={false} />;
 
 function TipBox({ title, rows }: { title: string; rows: { label: string; value: string; color?: string }[] }) {
@@ -38,15 +38,15 @@ function TipBox({ title, rows }: { title: string; rows: { label: string; value: 
 
 /** Single-series trend (e1RM per lift, first-set trend). Title names the series, so no legend. */
 export function TrendLine({ data, unit, baseline, height = 160, label }: { data: { x: string; y: number }[]; unit: string; baseline?: number | null; height?: number; label: string }) {
-  if (!data.length) return <p className="text-muted-foreground py-8 text-center text-sm">No data yet.</p>;
+  if (!data.length) return <p className="text-muted-foreground py-8 text-center text-sm">Nothing logged in this range.</p>;
   return (
-    <div style={{ height }} role="img" aria-label={`${label} trend`}>
+    <div style={{ height }} role="img" aria-label={`${label}: ${data[0].y} ${unit} on ${prettyDate(data[0].x)}, ${data.at(-1)!.y} ${unit} on ${prettyDate(data.at(-1)!.x)}`}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
           {GRID}
           <XAxis dataKey="x" {...AXIS} tickFormatter={(v: string) => prettyDate(v, { weekday: false })} minTickGap={24} />
           <YAxis {...AXIS} domain={['auto', 'auto']} width={44} />
-          {baseline != null && <ReferenceLine y={baseline} stroke="var(--muted-foreground)" strokeDasharray="4 4" label={{ value: 'baseline', fill: 'var(--muted-foreground)', fontSize: 10, position: 'insideBottomLeft' }} />}
+          {baseline != null && <ReferenceLine y={baseline} stroke="var(--muted-foreground)" strokeDasharray="4 4" label={{ value: 'baseline', fill: 'var(--muted-foreground)', fontSize: 12, position: 'insideBottomRight' }} />}
           <Tooltip
             cursor={{ stroke: 'var(--muted-foreground)', strokeDasharray: '3 3' }}
             content={({ active, payload }) =>
@@ -63,7 +63,7 @@ export function TrendLine({ data, unit, baseline, height = 160, label }: { data:
 /** One muscle's weekly sets with its target band (small multiples share `max`). */
 export function VolumeMini({ data, target, max, label }: { data: { week: string; sets: number }[]; target: number | null; max: number; label: string }) {
   return (
-    <div className="h-24" role="img" aria-label={`${label} weekly sets`}>
+    <div className="h-24" role="img" aria-label={`${label}: ${data.at(-1)?.sets ?? 0} sets this week${target != null ? `, target ${target}` : ''}`}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 4, right: 2, bottom: 0, left: 2 }} barCategoryGap={3}>
           <YAxis hide domain={[0, max]} />
@@ -97,9 +97,9 @@ export function BodyweightChart({ data, unit, hideNumbers }: { data: BwPoint[]; 
   if (!data.length) return <p className="text-muted-foreground py-8 text-center text-sm">Log a morning weigh-in to start your trend.</p>;
   return (
     <div>
-      <div className="h-56" role="img" aria-label="Bodyweight trend">
+      <div className="h-56" role="img" aria-label={hideNumbers ? 'Bodyweight trend, numbers hidden' : `Bodyweight trend over ${data.length} days`}>
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
+          <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -6 }}>
             {GRID}
             <XAxis dataKey="day" {...AXIS} tickFormatter={(v: string) => prettyDate(v, { weekday: false })} minTickGap={28} />
             <YAxis {...AXIS} domain={['dataMin - 0.5', 'dataMax + 0.5']} width={44} hide={hideNumbers} tickFormatter={(v: number) => v.toFixed(1)} />
@@ -147,15 +147,15 @@ export function BodyweightChart({ data, unit, hideNumbers }: { data: BwPoint[]; 
 
 /** Sessions done vs planned per week. */
 export function AdherenceBars({ data, bucket = 'week' }: { data: { week: string; done: number; planned: number }[]; bucket?: 'week' | 'month' }) {
-  const title = (d: string) => (bucket === 'month' ? new Date(`${d}T00:00:00Z`).toLocaleDateString(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' }) : `Week of ${prettyDate(d)}`);
-  const tick = (d: string) => (bucket === 'month' ? new Date(`${d}T00:00:00Z`).toLocaleDateString(undefined, { month: 'short', timeZone: 'UTC' }) : prettyDate(d, { weekday: false }));
+  const title = (d: string) => (bucket === 'month' ? new Date(`${d}T00:00:00Z`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : `Week of ${prettyDate(d)}`);
+  const tick = (d: string) => (bucket === 'month' ? new Date(`${d}T00:00:00Z`).toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' }) : prettyDate(d, { weekday: false }));
   // Planned and done bars overlap (barGap = −barSize); thinner bars once there are many buckets.
   const barSize = data.length > 16 ? 6 : 14;
   return (
     <div>
-      <div className="h-40" role="img" aria-label="Sessions done versus planned per week">
+      <div className="h-40" role="img" aria-label={`${data.reduce((n, d) => n + d.done, 0)} sessions done of ${data.reduce((n, d) => n + d.planned, 0)} planned`}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -24 }} barGap={-barSize} barCategoryGap="30%">
+          <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -12 }} barGap={-barSize} barCategoryGap="30%">
             {GRID}
             <XAxis dataKey="week" {...AXIS} tickFormatter={tick} minTickGap={16} />
             <YAxis {...AXIS} allowDecimals={false} width={36} />

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { BodyMap, type MuscleStyle } from '@/components/app/body-map';
-import { Segmented, Why } from '@/components/app/bits';
+import { Segmented, Stat, Why } from '@/components/app/bits';
 import { bandFill, mixVolt, NONE_FILL, RECENCY, volumeBand, VOLUME_BANDS } from '@/components/app/colors';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -76,12 +76,12 @@ export function BodyExplorer({ info, adjustments }: { info: Partial<Record<Muscl
           options={[
             { value: 'volume', label: 'Volume' },
             { value: 'planned', label: 'Planned' },
-            { value: 'recency', label: 'Last trained' },
+            { value: 'recency', label: 'Recent' },
             { value: 'soreness', label: 'Soreness' },
           ]}
         />
         <BodyMap side="both" className="mx-auto mt-4 max-w-xl" styles={styles} selected={sel} onSelect={setSel} />
-        <ul className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1.5" aria-label="Legend">
+        <ul className="mt-6 flex flex-wrap justify-center gap-x-4 gap-y-1.5" aria-label="Legend">
           {legend.map((l) => (
             <li key={l.label} className="text-muted-foreground flex items-center gap-1.5 text-xs">
               <span className="size-3 rounded-sm border" style={{ background: l.fill }} />
@@ -141,19 +141,10 @@ export function BodyExplorer({ info, adjustments }: { info: Partial<Record<Muscl
                 </SheetDescription>
               </SheetHeader>
               <div className="space-y-4 px-4 pb-6">
-                <div className="num grid grid-cols-3 gap-3">
-                  <div className="bg-muted rounded-xl p-3">
-                    <p className="stamp text-muted-foreground">Logged</p>
-                    <p className="font-display text-3xl font-bold">{i.logged}</p>
-                  </div>
-                  <div className="bg-muted rounded-xl p-3">
-                    <p className="stamp text-muted-foreground">Planned</p>
-                    <p className="font-display text-3xl font-bold">{i.planned}</p>
-                  </div>
-                  <div className="bg-muted rounded-xl p-3">
-                    <p className="stamp text-muted-foreground">Last trained</p>
-                    <p className="font-display text-3xl font-bold">{i.daysSince == null ? '-' : `${i.daysSince}d`}</p>
-                  </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <Stat label="Logged" value={i.logged} />
+                  <Stat label="Planned" value={i.planned} />
+                  <Stat label="Last trained" value={i.daysSince == null ? '-' : i.daysSince === 0 ? 'Today' : `${i.daysSince}d ago`} />
                 </div>
                 {i.target != null && (
                   <ul className="text-muted-foreground space-y-1 text-sm">
@@ -166,9 +157,9 @@ export function BodyExplorer({ info, adjustments }: { info: Partial<Record<Muscl
                   </ul>
                 )}
                 {i.injuries.map((inj) => (
-                  <div key={inj.label} className="text-danger text-sm">
+                  <div key={inj.label} className="text-sm">
                     <p>
-                      <span className="font-semibold">{inj.label}</span> ({inj.status === 'rehab' ? 'rehab' : inj.severity}):{' '}
+                      <span className="text-danger font-semibold">{inj.label}</span> ({inj.status === 'rehab' ? 'rehab' : inj.severity}):{' '}
                       {inj.status === 'rehab'
                         ? 'exercises for this area are planned lighter with higher reps; stop well short of pain.'
                         : inj.severity === 'niggle'
@@ -180,17 +171,17 @@ export function BodyExplorer({ info, adjustments }: { info: Partial<Record<Muscl
                   </div>
                 ))}
                 <div>
-                  <p className="stamp text-muted-foreground mb-1">Exercises this week</p>
+                  <h3 className="mb-1 font-semibold">Exercises this week</h3>
                   {i.exercises.length ? (
                     <ul className="divide-y text-sm">
                       {i.exercises.map((e) => (
-                        <li key={e.name} className="flex justify-between py-1.5">
-                          <Link href={`/library/${e.slug}`} className="underline-offset-2 hover:underline">
-                            {e.name}
+                        <li key={e.name}>
+                          <Link href={`/library/${e.slug}`} className="flex min-h-11 items-center justify-between gap-3 py-1">
+                            <span className="min-w-0">{e.name}</span>
+                            <span className="num text-muted-foreground shrink-0 text-right">
+                              {e.sets} sets{e.weight !== 1 && ', counts half'}
+                            </span>
                           </Link>
-                          <span className="num text-muted-foreground">
-                            {e.sets} sets × {e.weight === 1 ? '1.0' : '0.5'}
-                          </span>
                         </li>
                       ))}
                     </ul>

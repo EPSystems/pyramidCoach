@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: 'Set a new password' };
 export default function ResetPasswordPage() {
   return (
     <AuthShell>
-      <AuthHeading kicker="Account" title="New password">
+      <AuthHeading title="New password">
         Choose a new password for your account.
       </AuthHeading>
       <ResetForm />

@@ -1,12 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Download } from 'lucide-react';
 import { requireOnboarded } from '@/lib/server/context';
 import { bodyweightSeries } from '@/lib/server/bodyweight';
 import { loadProgressData, VOLUME_WEEKS } from '@/lib/server/progress';
 import { PageHeader, Why } from '@/components/app/bits';
 import { AdherenceBars, BodyweightChart, TrendLine, VolumeMini } from '@/components/app/charts';
-import { Button } from '@/components/ui/button';
 import { addDays, daysBetween, mondayOf } from '@/lib/engine/util';
 import { loggedMuscleSets } from '@/lib/engine/counting';
 import { adherenceBuckets, exerciseTrend, liftStallFlags, mainLiftSeries, parseRange, PROGRESS_RANGES, rangeStart, type Point, type ProgressRange } from '@/lib/engine/progress';
@@ -22,12 +20,6 @@ export const metadata: Metadata = { title: 'Progress' };
 const LIFT_NAMES: Record<MainLift, string> = { squat: 'Squat', bench: 'Bench press', deadlift: 'Deadlift', ohp: 'Overhead press' };
 const RANGE_LABEL: Record<ProgressRange, string> = { '3m': '3 months', '6m': '6 months', '1y': '1 year', all: 'All time' };
 const RANGE_SHORT: Record<ProgressRange, string> = { '3m': '3M', '6m': '6M', '1y': '1Y', all: 'All' };
-const EXPORTS = [
-  { type: 'sets', label: 'Logged sets' },
-  { type: 'weighins', label: 'Weigh-ins' },
-  { type: 'checkins', label: 'Check-ins' },
-  { type: 'nutrition', label: 'Nutrition targets' },
-] as const;
 
 export default async function ProgressPage({ searchParams }: PageProps<'/progress'>) {
   const sp = await searchParams;
@@ -65,10 +57,18 @@ export default async function ProgressPage({ searchParams }: PageProps<'/progres
   const weeks = Array.from({ length: VOLUME_WEEKS }, (_, i) => addDays(mondayOf(today), -7 * (VOLUME_WEEKS - 1 - i)));
   const vol = weeks.map((w) => ({ w, m: loggedMuscleSets(allSets, exMap, w) }));
   const maxVol = Math.max(20, ...vol.flatMap((v) => TRACKED_MUSCLES.map((m) => v.m[m])));
+  const thisWeek = vol[vol.length - 1].m;
+  const targetOf = (m: (typeof TRACKED_MUSCLES)[number]) => data.targets.find((x) => x.muscle_id === m && x.week_index === data.blockWeek);
+  const onTarget = TRACKED_MUSCLES.filter((m) => {
+    const t = targetOf(m);
+    return t && Math.abs(thisWeek[m] - Number(t.target_sets)) <= 1;
+  }).length;
 
   // Adherence: weekly for 3 months, monthly beyond.
   const bucket = range === '3m' ? 'week' : 'month';
   const adherence = adherenceBuckets(data.sessions, data.adherenceFrom, today, bucket);
+  const sessionsDone = adherence.reduce((n, a) => n + a.done, 0);
+  const sessionsPlanned = adherence.reduce((n, a) => n + a.planned, 0);
 
   // Per-exercise history.
   const history: HistoryExercise[] = [...new Set(sets.map((s) => s.exerciseId))]
@@ -93,100 +93,128 @@ export default async function ProgressPage({ searchParams }: PageProps<'/progres
 
   return (
     <div className="mx-auto max-w-6xl">
-      <PageHeader kicker="Trends" title="Progress">
-        <nav aria-label="History range" className="bg-muted/70 flex gap-1 rounded-xl p-1">
-          {PROGRESS_RANGES.map((r) => (
-            <Link
-              key={r}
-              href={`/progress?range=${r}`}
-              aria-current={r === range ? 'page' : undefined}
-              aria-label={RANGE_LABEL[r]}
-              className={cn('num flex h-11 min-w-12 items-center justify-center rounded-lg px-3 text-sm font-semibold', r === range ? 'bg-volt text-volt-ink shadow-sm' : 'text-muted-foreground hover:text-foreground')}
-            >
-              {RANGE_SHORT[r]}
-            </Link>
-          ))}
-        </nav>
-      </PageHeader>
+      <PageHeader title="Progress" />
+      <nav aria-label="History range" className="bg-muted/70 mx-4 mb-4 flex gap-1 rounded-xl p-1 sm:mx-6 sm:max-w-sm lg:mx-8">
+        {PROGRESS_RANGES.map((r) => (
+          <Link
+            key={r}
+            href={`/progress?range=${r}`}
+            aria-current={r === range ? 'page' : undefined}
+            aria-label={RANGE_LABEL[r]}
+            className={cn('num flex h-11 min-w-0 flex-1 items-center justify-center rounded-lg px-3 text-sm font-semibold', r === range ? 'bg-volt text-volt-ink shadow-sm' : 'text-muted-foreground hover:text-foreground')}
+          >
+            {RANGE_SHORT[r]}
+          </Link>
+        ))}
+      </nav>
       <div className="space-y-4 px-4 sm:px-6 lg:px-8">
-        <section className="bg-card rounded-2xl border p-5">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-lg font-semibold">Main lifts · e1RM</h2>
+        <section>
+          <div className="mb-2 flex items-center justify-between gap-2 px-1">
+            <h2 className="text-lg font-semibold">Main lifts</h2>
             <Why ruleIds={['T-EST-01']} label="How?" />
           </div>
-          <p className="text-muted-foreground text-xs">
-            Estimated 1-rep max from your best set each day (reps + RIR ≤ 12) · {RANGE_LABEL[range].toLowerCase()}.
-          </p>
           {shownLifts.length ? (
-            <>
-              <div className="mt-4 grid gap-5 md:grid-cols-2">
-                {shownLifts.map((l) => (
-                  <div key={l.lift}>
-                    <p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-                      {LIFT_NAMES[l.lift]}
-                      {l.stall?.stalled && (
-                        <span className="bg-warn/15 text-warn rounded-full px-2 py-0.5 text-xs font-medium">
-                          Stalled{l.stall.lastPrOn ? ` · best ${prettyDate(l.stall.lastPrOn, { weekday: false })}` : ''}
-                        </span>
-                      )}
-                    </p>
-                    <TrendLine data={l.series} unit={units} baseline={l.baseline} label={`${LIFT_NAMES[l.lift]} e1RM`} />
-                  </div>
-                ))}
-              </div>
-              <table className="num mt-4 w-full text-sm">
-                <thead className="text-muted-foreground text-left text-xs">
-                  <tr>
-                    <th className="py-1 font-medium">Lift</th>
-                    <th className="font-medium">Baseline</th>
-                    <th className="font-medium">Latest</th>
-                    <th className="font-medium">Best</th>
-                    <th className="font-medium">Change</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {shownLifts.map((l) => (
-                    <tr key={l.lift}>
-                      <td className="py-1.5">{LIFT_NAMES[l.lift]}</td>
-                      <td>{l.baseline ?? '-'}</td>
-                      <td>{l.latest ?? '-'}</td>
-                      <td>{l.best ?? '-'}</td>
-                      <td className={l.latest != null && l.baseline != null && l.latest >= l.baseline ? 'text-ok' : ''}>
-                        {l.latest != null && l.baseline != null ? `${l.latest - l.baseline >= 0 ? '+' : ''}${Math.round((l.latest - l.baseline) * 10) / 10}` : '-'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {shownLifts.some((l) => l.stall?.stalled) && (
-                <p className="text-muted-foreground mt-3 text-xs">
-                  Stalled = no new best for longer than expected for a {status} lifter (same test as the weekly review, which suggests what to do). <Why ruleIds={['T-PRG-06']} />
-                </p>
-              )}
-            </>
+            <ul className="grid gap-4 md:grid-cols-2">
+              {shownLifts.map((l) => {
+                const change = l.latest != null && l.baseline != null ? Math.round((l.latest - l.baseline) * 10) / 10 : null;
+                return (
+                  <li key={l.lift} className="bg-card rounded-2xl border p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="font-semibold">{LIFT_NAMES[l.lift]}</h3>
+                        <p className="text-muted-foreground text-sm">Estimated 1-rep max</p>
+                        {l.stall?.stalled && (
+                          <p className="text-warn mt-1 text-sm font-medium">
+                            Stalled{l.stall.lastPrOn ? ` since ${prettyDate(l.stall.lastPrOn, { weekday: false })}` : ''}
+                          </p>
+                        )}
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="font-display num text-4xl leading-none font-bold">
+                          {l.latest ?? '-'} <span className="text-muted-foreground font-sans text-sm font-normal">{units}</span>
+                        </p>
+                        {change != null && (
+                          <p className={cn('num mt-1 text-sm', change > 0 ? 'text-ok' : 'text-muted-foreground')}>
+                            {change > 0 ? '+' : ''}
+                            {change} {units} since start
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-2">
+                      <TrendLine data={l.series} unit={units} baseline={l.baseline} label={`${LIFT_NAMES[l.lift]} estimated 1-rep max`} />
+                    </div>
+                    {l.best != null && <p className="num text-muted-foreground mt-1 text-sm">Best in this range: {l.best} {units}</p>}
+                  </li>
+                );
+              })}
+            </ul>
           ) : (
-            <p className="text-muted-foreground py-6 text-sm">Log squat, bench, deadlift or OHP sets to see estimates here.</p>
+            <p className="bg-card text-muted-foreground rounded-2xl border p-5 text-sm">Log squat, bench, deadlift or overhead press to see your estimated 1-rep max here.</p>
+          )}
+          {shownLifts.some((l) => l.stall?.stalled) && (
+            <p className="text-muted-foreground mt-2 px-1 text-sm">
+              Stalled means no new best for longer than expected for a {status} lifter. The weekly review suggests what to do. <Why ruleIds={['T-PRG-06']} />
+            </p>
           )}
         </section>
 
-        <ExerciseHistory exercises={history} unit={units} />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <section className="bg-card rounded-2xl border p-5">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-lg font-semibold">Bodyweight</h2>
+              <Why ruleIds={['N-WGT-01', 'N-WGT-02', 'N-WGT-03']} />
+            </div>
+            {ctx.profile.hide_bodyweight && (
+              <p className="text-muted-foreground text-sm">
+                Trend: <span className="text-foreground font-medium capitalize">{bw.direction}</span>. Numbers are hidden in Settings.
+              </p>
+            )}
+            <div className="mt-3">
+              <BodyweightChart data={bw.points} unit={units} hideNumbers={!!ctx.profile.hide_bodyweight} />
+            </div>
+          </section>
+          <section className="bg-card rounded-2xl border p-5">
+            <h2 className="text-lg font-semibold">Sessions</h2>
+            <p className="text-muted-foreground text-sm">
+              {sessionsPlanned ? (
+                <>
+                  <span className="num text-foreground font-medium">
+                    {sessionsDone} of {sessionsPlanned}
+                  </span>{' '}
+                  planned sessions done · {RANGE_LABEL[range].toLowerCase()}
+                </>
+              ) : (
+                'No sessions planned in this range.'
+              )}
+            </p>
+            <div className="mt-3">
+              <AdherenceBars data={adherence} bucket={bucket} />
+            </div>
+          </section>
+        </div>
 
         <section className="bg-card rounded-2xl border p-5">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-lg font-semibold">Weekly sets · {VOLUME_WEEKS} weeks</h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold">Weekly sets</h2>
             <Why ruleIds={['T-VOL-05', 'T-VOL-06']} />
           </div>
-          <p className="text-muted-foreground text-xs">Same scale (0–{maxVol}) on every panel; shaded band = this block’s target ±1.</p>
+          <p className="text-muted-foreground text-sm">
+            <span className="num text-foreground font-medium">
+              {onTarget} of {TRACKED_MUSCLES.length}
+            </span>{' '}
+            muscles on target this week. The last {VOLUME_WEEKS} weeks are shown; the shaded band is the target.
+          </p>
           <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-4">
             {TRACKED_MUSCLES.map((m) => {
-              const t = data.targets.find((x) => x.muscle_id === m && x.week_index === data.blockWeek);
-              const thisWeek = vol[vol.length - 1].m[m];
+              const t = targetOf(m);
               return (
                 <div key={m}>
-                  <p className="flex justify-between text-xs">
+                  <p className="flex justify-between gap-2 text-sm">
                     <span className="font-medium">{MUSCLE_SHORT[m]}</span>
                     <span className="num text-muted-foreground">
-                      {Math.round(thisWeek * 10) / 10}/{t ? Number(t.target_sets) : '-'}
+                      {Math.round(thisWeek[m] * 10) / 10}
+                      {t ? ` of ${Number(t.target_sets)}` : ''}
                     </span>
                   </p>
                   <VolumeMini data={vol.map((v) => ({ week: v.w, sets: Math.round(v.m[m] * 10) / 10 }))} target={t ? Number(t.target_sets) : null} max={maxVol} label={MUSCLE_SHORT[m]} />
@@ -196,48 +224,11 @@ export default async function ProgressPage({ searchParams }: PageProps<'/progres
           </div>
         </section>
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          <section className="bg-card rounded-2xl border p-5">
-            <div className="flex items-baseline justify-between">
-              <h2 className="text-lg font-semibold">Bodyweight</h2>
-              <Why ruleIds={['N-WGT-01', 'N-WGT-02', 'N-WGT-03']} />
-            </div>
-            {ctx.profile.hide_bodyweight ? (
-              <p className="mt-2 text-sm">
-                Trend: <span className="font-semibold capitalize">{bw.direction}</span> <span className="text-muted-foreground">(numbers hidden in Settings)</span>
-              </p>
-            ) : null}
-            <div className="mt-3">
-              <BodyweightChart data={bw.points} unit={units} hideNumbers={!!ctx.profile.hide_bodyweight} />
-            </div>
-          </section>
-          <section className="bg-card rounded-2xl border p-5">
-            <h2 className="text-lg font-semibold">Adherence</h2>
-            <p className="text-muted-foreground text-xs">Sessions done vs planned per {bucket}</p>
-            <div className="mt-3">
-              <AdherenceBars data={adherence} bucket={bucket} />
-            </div>
-          </section>
-        </div>
+        <ExerciseHistory exercises={history} unit={units} />
 
-        <section className="bg-card rounded-2xl border p-5">
-          <h2 className="text-lg font-semibold">Your data</h2>
-          <p className="text-muted-foreground text-xs">Full history, whatever range is shown above.</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {EXPORTS.map((e) => (
-              <Button key={e.type} asChild variant="outline">
-                <a href={`/api/export?format=csv&type=${e.type}`}>
-                  <Download /> {e.label} (CSV)
-                </a>
-              </Button>
-            ))}
-            <Button asChild variant="outline">
-              <a href="/api/export?format=json">
-                <Download /> Everything (JSON)
-              </a>
-            </Button>
-          </div>
-        </section>
+        <Link href="/settings#data" className="text-muted-foreground hover:text-foreground flex h-11 items-center justify-center text-sm underline-offset-4 hover:underline">
+          Export your data in Settings
+        </Link>
       </div>
     </div>
   );

@@ -64,7 +64,7 @@ export function ExerciseActions({ exerciseId, disliked, custom }: { exerciseId: 
           </Button>
         </div>
       ) : (
-        <p className="text-muted-foreground text-xs">Disliked exercises are skipped when plans are built (T-SEL-04); if one is in your current plan you can swap it out.</p>
+        <p className="text-muted-foreground text-xs">Disliked exercises are skipped when plans are built. If one is in your current plan, you can swap it out.</p>
       )}
       {custom && (
         <Button
@@ -72,6 +72,7 @@ export function ExerciseActions({ exerciseId, disliked, custom }: { exerciseId: 
           className="w-full"
           disabled={pending}
           onClick={() =>
+            window.confirm('Delete this custom exercise? It can’t be restored.') &&
             start(async () => {
               const r = await deleteCustomExercise(exerciseId);
               if (!r.ok) toast.error(r.error);

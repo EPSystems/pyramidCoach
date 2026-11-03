@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useTransition } from 'react';
-import { ArrowLeft, ArrowRight, Check, Plus, X } from 'lucide-react';
+import { ArrowRight, Check, ChevronLeft, Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { completeOnboarding } from '@/lib/actions/onboarding';
 import { BirthYear, BodyFatPct, BodyweightKg, HeightCm, SportMinutes, fieldError, type OnboardingPayload } from '@/lib/schemas/onboarding';
@@ -10,8 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { BodyMap } from '@/components/app/body-map';
-import { Chip, Segmented, Why } from '@/components/app/bits';
-import { PyramidMark } from '@/components/app/logo';
+import { Chip, DayPicker, Disclosure, Segmented, Why } from '@/components/app/bits';
 import { cn } from '@/lib/utils';
 import type { Equipment, MuscleId } from '@/lib/engine/types';
 import { MUSCLE_SHORT } from '@/lib/knowledge/muscles';
@@ -26,8 +25,6 @@ type Injury = OnboardingPayload['injuries'][number];
 type Custom = NonNullable<OnboardingPayload['customSports']>[number];
 
 const ALL_EQ: Equipment[] = ['barbell', 'dumbbell', 'machine', 'cable', 'bodyweight', 'band', 'sled'];
-const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 const GOALS: { id: Goal; title: string; line: string }[] = [
   { id: 'lean_gain', title: 'Lean muscle gain', line: 'Build muscle in a small calorie surplus.' },
@@ -47,7 +44,16 @@ const LIFESTYLES = [
   { id: 'active' as const, title: 'Active', line: 'On your feet most of the day (8–12k steps).' },
   { id: 'very_active' as const, title: 'Very active', line: 'Physical job or 12k+ steps daily.' },
 ];
-const STEPS = ['About you', 'Goal', 'Experience', 'Sports', 'Availability', 'Equipment & injuries', 'Lifestyle'];
+// Each step says why it's being asked, so the questions feel like coaching and not paperwork.
+const STEPS: { title: string; line: string }[] = [
+  { title: 'About you', line: 'Used to set your starting calories and weights.' },
+  { title: 'Your goal', line: 'Sets your training volume and calories. You can change it any time.' },
+  { title: 'Your experience', line: 'Decides how fast the plan asks you to progress.' },
+  { title: 'Your sports', line: 'Lifting gets scheduled around them. Skip this if you have none.' },
+  { title: 'Your week', line: 'The plan picks how many days to lift, and which ones.' },
+  { title: 'Your gym', line: 'Exercises are chosen to fit what you have and what hurts.' },
+  { title: 'Your day', line: 'Your activity outside lifting and sports helps set your calories.' },
+];
 
 function Card({ active, onClick, title, line }: { active: boolean; onClick: () => void; title: string; line: string }) {
   return (
@@ -56,13 +62,13 @@ function Card({ active, onClick, title, line }: { active: boolean; onClick: () =
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        'relative w-full rounded-2xl border p-4 text-left transition-all',
+        'relative w-full rounded-2xl border p-4 pr-11 text-left transition-colors',
         active ? 'border-volt bg-accent/60 shadow-[0_0_0_1px_var(--volt)]' : 'bg-card hover:border-foreground/30',
       )}
     >
-      <span className="block text-lg font-semibold">{title}</span>
+      <span className="block font-semibold">{title}</span>
       <span className="text-muted-foreground mt-0.5 block text-sm">{line}</span>
-      {active && <Check className="text-volt absolute top-4 right-4 size-5" />}
+      {active && <Check className="text-volt absolute top-4 right-4 size-5" aria-hidden />}
     </button>
   );
 }
@@ -70,14 +76,14 @@ function Card({ active, onClick, title, line }: { active: boolean; onClick: () =
 function Field({ label, children, hint, error }: { label: string; children: React.ReactNode; hint?: string; error?: string | null }) {
   return (
     <div className="space-y-1.5">
-      <Label className="stamp text-muted-foreground">{label}</Label>
+      <Label className="text-sm font-medium">{label}</Label>
       {children}
       {error ? (
-        <p role="alert" className="text-danger text-xs">
+        <p role="alert" className="text-danger text-sm">
           {error}
         </p>
       ) : (
-        hint && <p className="text-muted-foreground text-xs">{hint}</p>
+        hint && <p className="text-muted-foreground text-sm">{hint}</p>
       )}
     </div>
   );
@@ -230,19 +236,24 @@ export function OnboardingWizard({
   }
 
   return (
-    <main className="relative z-10 mx-auto flex min-h-dvh max-w-xl flex-col px-4 pt-6 pb-28 sm:px-6">
-      <div className="flex items-center gap-3">
-        <PyramidMark lit={Math.ceil(((step + 1) / STEPS.length) * 3)} />
-        <div className="min-w-0 flex-1">
-          <p className="stamp text-muted-foreground">
-            Step {step + 1} of {STEPS.length}
-          </p>
-          <div className="bg-muted mt-1.5 h-1.5 overflow-hidden rounded-full" role="progressbar" aria-valuemin={1} aria-valuemax={STEPS.length} aria-valuenow={step + 1}>
-            <div className="bg-volt h-full rounded-full transition-all duration-500" style={{ width: `${((step + 1) / STEPS.length) * 100}%` }} />
-          </div>
-        </div>
+    <main className="relative z-10 mx-auto flex min-h-dvh max-w-xl flex-col px-4 pt-2 pb-28 sm:px-6">
+      <div className="flex h-11 items-center justify-between gap-3">
+        {step > 0 ? (
+          <button type="button" onClick={() => setStep(step - 1)} disabled={pending} className="text-muted-foreground -ml-1.5 inline-flex h-11 items-center gap-0.5 text-[0.95rem] font-medium disabled:opacity-50">
+            <ChevronLeft className="size-5" aria-hidden /> Back
+          </button>
+        ) : (
+          <span />
+        )}
+        <p className="num text-muted-foreground text-sm">
+          Step {step + 1} of {STEPS.length}
+        </p>
       </div>
-      <h1 className="font-display mt-6 text-5xl leading-none font-extrabold uppercase">{STEPS[step]}</h1>
+      <div className="bg-muted mt-1 h-1 overflow-hidden rounded-full" role="progressbar" aria-label="Setup progress" aria-valuemin={1} aria-valuemax={STEPS.length} aria-valuenow={step + 1}>
+        <div className="bg-volt h-full rounded-full transition-all duration-300" style={{ width: `${((step + 1) / STEPS.length) * 100}%` }} />
+      </div>
+      <h1 className="font-display mt-6 text-5xl leading-none font-extrabold uppercase">{STEPS[step].title}</h1>
+      <p className="text-muted-foreground mt-2">{STEPS[step].line}</p>
 
       <section className="mt-6 space-y-5" key={step}>
         {step === 0 && (
@@ -251,7 +262,7 @@ export function OnboardingWizard({
             <Field label="Name">
               <Input value={name} onChange={(e) => setName(e.target.value)} className="h-12 text-base" />
             </Field>
-            <Field label="Sex (used for body-fat thresholds)">
+            <Field label="Sex" hint="Used for body-fat thresholds.">
               <Segmented label="Sex" value={sex} onChange={setSex} options={[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }]} />
             </Field>
             <Field label="Units">
@@ -273,14 +284,14 @@ export function OnboardingWizard({
                   </div>
                 </Field>
               )}
-              <Field label="Birth year" error={errors.birthYear}>
+              <Field label="Birth year (optional)" error={errors.birthYear}>
                 <Input inputMode="numeric" aria-invalid={!!errors.birthYear} value={birthYear} onChange={(e) => setBirthYear(e.target.value)} className="num h-12 text-base" placeholder="1995" />
               </Field>
               <Field label="Body fat % (optional)" error={errors.bf}>
-                <Input inputMode="decimal" aria-invalid={!!errors.bf} value={bf} onChange={(e) => setBf(e.target.value)} className="num h-12 text-base" placeholder="skip" />
+                <Input inputMode="decimal" aria-invalid={!!errors.bf} value={bf} onChange={(e) => setBf(e.target.value)} className="num h-12 text-base" />
               </Field>
             </div>
-            <p className="text-muted-foreground text-xs">This app gives general training and nutrition guidance. It is not a substitute for a doctor or physiotherapist.</p>
+            <p className="text-muted-foreground text-sm">This app gives general training and nutrition guidance. It is not a substitute for a doctor or physiotherapist.</p>
           </>
         )}
 
@@ -296,7 +307,7 @@ export function OnboardingWizard({
         {step === 2 && (
           <>
             <p className="text-muted-foreground text-sm">
-              Status is about how fast you progress, not years or strength. <Why ruleIds={['T-STA-01', 'T-STA-02']} />
+              It’s about how fast you progress, not years or strength. <Why ruleIds={['T-STA-01', 'T-STA-02']} />
             </p>
             <div className="space-y-3">
               {STATUSES.map((s) => (
@@ -317,19 +328,19 @@ export function OnboardingWizard({
             <Field label="Trained regularly in the last month?" hint="After time off your first week is an easier intro week.">
               <Segmented label="Trained last month" value={trainedLastMonth ? 'y' : 'n'} onChange={(v) => setTrainedLastMonth(v === 'y')} options={[{ value: 'y', label: 'Yes' }, { value: 'n', label: 'No' }]} />
             </Field>
-            <details className="bg-card rounded-xl border p-3" open={goal === 'strength' || !!prefill?.seeds}>
-              <summary className="cursor-pointer text-sm font-medium">Recent best sets (optional): seeds your starting weights</summary>
-              <div className="mt-3 space-y-2">
+            <Disclosure summary="Recent best sets (optional)" className="bg-card rounded-2xl border" open={goal === 'strength' || !!prefill?.seeds}>
+              <p className="text-muted-foreground mb-3 text-sm">These set your starting weights.</p>
+              <div className="space-y-2">
                 {(['squat', 'bench', 'deadlift', 'ohp'] as const).map((lift) => (
                   <div key={lift} className="grid grid-cols-[6rem_1fr_auto_1fr] items-center gap-2">
-                    <span className="text-sm capitalize">{lift === 'ohp' ? 'OHP' : lift}</span>
+                    <span className="text-sm capitalize">{lift === 'ohp' ? 'Overhead' : lift}</span>
                     <Input inputMode="decimal" aria-label={`${lift} load`} placeholder={units} value={seeds[lift]?.load ?? ''} onChange={(e) => setSeeds({ ...seeds, [lift]: { load: Number(e.target.value) || 0, reps: seeds[lift]?.reps ?? 5 } })} className="num h-11" />
                     <span className="text-muted-foreground text-sm">×</span>
                     <Input inputMode="numeric" aria-label={`${lift} reps`} placeholder="reps" value={seeds[lift]?.reps ?? ''} onChange={(e) => setSeeds({ ...seeds, [lift]: { load: seeds[lift]?.load ?? 0, reps: Number(e.target.value) || 0 } })} className="num h-11" />
                   </div>
                 ))}
               </div>
-            </details>
+            </Disclosure>
           </>
         )}
 
@@ -355,20 +366,7 @@ export function OnboardingWizard({
                   </div>
                   {meta?.notes && <p className="text-muted-foreground text-xs">{meta.notes}</p>}
                   <Field label="Days">
-                    <div className="grid grid-cols-7 gap-1">
-                      {DAYS.map((d, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          aria-pressed={us.weekdays.includes(i + 1)}
-                          aria-label={DAY_NAMES[i]}
-                          onClick={() => patchSport(us.sportId, { weekdays: us.weekdays.includes(i + 1) ? us.weekdays.filter((x) => x !== i + 1) : [...us.weekdays, i + 1] })}
-                          className={cn('h-11 rounded-lg text-sm font-semibold', us.weekdays.includes(i + 1) ? 'bg-volt text-volt-ink' : 'bg-muted text-muted-foreground')}
-                        >
-                          {d}
-                        </button>
-                      ))}
-                    </div>
+                    <DayPicker label={`${meta?.name ?? 'Sport'} days`} value={us.weekdays} onChange={(v) => patchSport(us.sportId, { weekdays: v })} />
                   </Field>
                   <Field label="Intensity">
                     <Segmented label="Intensity" value={us.intensity} onChange={(v) => patchSport(us.sportId, { intensity: v })} options={[{ value: 'light', label: 'Light' }, { value: 'moderate', label: 'Moderate' }, { value: 'hard', label: 'Hard' }, { value: 'match', label: 'Match' }]} />
@@ -378,7 +376,7 @@ export function OnboardingWizard({
                       <Input inputMode="numeric" aria-invalid={!!sportErrors[us.sportId]} value={us.minutes || ''} onChange={(e) => patchSport(us.sportId, { minutes: Number(e.target.value) || 0 })} className="num h-11" />
                     </Field>
                     <Field label="Time of day">
-                      <Segmented label="Time of day" value={us.timeOfDay ?? null} onChange={(v) => patchSport(us.sportId, { timeOfDay: v })} options={[{ value: 'morning', label: 'AM' }, { value: 'midday', label: 'Mid' }, { value: 'evening', label: 'PM' }]} />
+                      <Segmented label="Time of day" value={us.timeOfDay ?? null} onChange={(v) => patchSport(us.sportId, { timeOfDay: v })} options={[{ value: 'morning', label: 'AM' }, { value: 'midday', label: 'Noon' }, { value: 'evening', label: 'PM' }]} />
                     </Field>
                   </div>
                 </div>
@@ -387,37 +385,23 @@ export function OnboardingWizard({
             {hasSport && goal !== 'sport_support' && (
               <Field label="What comes first?">
                 <Segmented label="Priority" value={priority} onChange={setPriority} options={[{ value: 'lifting', label: 'Lifting' }, { value: 'balanced', label: 'Balanced' }, { value: 'sport', label: 'My sport' }]} />
-                <p className="text-muted-foreground text-xs">
+                <p className="text-muted-foreground text-sm">
                   When both matter, one has to lead. <Why ruleIds={['T-PRI-01', 'S-02']} />
                 </p>
               </Field>
             )}
-            {!hasSport && <p className="text-muted-foreground text-sm">No sports? Skip this step.</p>}
           </>
         )}
 
         {step === 4 && (
           <>
-            <Field label="Which days could you lift?" hint="The app picks how many and which ones, around your sports.">
-              <div className="grid grid-cols-7 gap-1">
-                {DAYS.map((d, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    aria-pressed={days.includes(i + 1)}
-                    aria-label={DAY_NAMES[i]}
-                    onClick={() => setDays(days.includes(i + 1) ? days.filter((x) => x !== i + 1) : [...days, i + 1])}
-                    className={cn('h-12 rounded-lg font-semibold', days.includes(i + 1) ? 'bg-volt text-volt-ink' : 'bg-muted text-muted-foreground')}
-                  >
-                    {d}
-                  </button>
-                ))}
-              </div>
+            <Field label="Which days could you lift?">
+              <DayPicker label="Days you could lift" value={days} onChange={setDays} />
             </Field>
             <Field label="Session length (minutes)">
               <Segmented label="Session minutes" value={minutes} onChange={setMinutes} options={[30, 45, 60, 75, 90, 120].map((m) => ({ value: m as 30, label: m }))} />
             </Field>
-            <Field label="No more than … lifting days (optional)">
+            <Field label="Most lifting days a week">
               <Segmented label="Max lift days" value={maxDays} onChange={(v) => setMaxDays(v === 0 ? null : v)} options={[{ value: 0, label: 'Any' }, ...[2, 3, 4, 5, 6].map((n) => ({ value: n, label: n }))]} />
             </Field>
           </>
@@ -442,9 +426,10 @@ export function OnboardingWizard({
                 ))}
               </div>
             )}
-            <Field label="Anything hurting or in rehab?" hint="Tap the area on the body map.">
+            <Disclosure summary="Anything hurting or in rehab?" className="bg-card rounded-2xl border" open={injuries.length > 0}>
+              <p className="text-muted-foreground mb-2 text-sm">Tap the area on the body map.</p>
               <BodyMap side="both" selected={injMuscle} onSelect={setInjMuscle} styles={Object.fromEntries(injuries.map((i) => [i.muscleId, { fill: 'color-mix(in oklch, var(--danger) 45%, var(--card))', dashed: true, label: i.severity }]))} className="mx-auto max-w-sm" />
-            </Field>
+            </Disclosure>
             {injMuscle && !injuries.find((i) => i.muscleId === injMuscle) && (
               <div className="bg-card space-y-3 rounded-2xl border p-4">
                 <p className="text-lg font-semibold">{MUSCLE_SHORT[injMuscle]}</p>
@@ -463,9 +448,9 @@ export function OnboardingWizard({
               <div key={inj.muscleId} className="bg-card space-y-2 rounded-2xl border p-4">
                 <div className="flex items-center justify-between">
                   <p className="font-medium">
-                    {inj.label} <span className="stamp text-danger ml-1">{inj.severity}</span>
+                    {inj.label}
                   </p>
-                  <button type="button" aria-label="Remove" className="text-muted-foreground grid size-11 place-items-center" onClick={() => setInjuries(injuries.filter((_, i) => i !== idx))}>
+                  <button type="button" aria-label={`Remove ${inj.label}`} className="text-muted-foreground grid size-11 place-items-center" onClick={() => setInjuries(injuries.filter((_, i) => i !== idx))}>
                     <X className="size-4" />
                   </button>
                 </div>
@@ -475,9 +460,9 @@ export function OnboardingWizard({
                   onChange={(v) => patchInjury(idx, { status: v })}
                   options={[{ value: 'active' as const, label: 'Hurting now' }, { value: 'rehab' as const, label: 'In rehab' }]}
                 />
-                <Textarea placeholder="Optional note (e.g. your physio’s protocol)" value={inj.note ?? ''} onChange={(e) => patchInjury(idx, { note: e.target.value })} />
+                <Textarea aria-label="Note" placeholder="Optional note, such as your physio’s protocol" value={inj.note ?? ''} onChange={(e) => patchInjury(idx, { note: e.target.value })} />
                 <AvoidPicker muscle={inj.muscleId} exercises={exercises} value={inj.avoidSlugs ?? []} onChange={(avoidSlugs) => patchInjury(idx, { avoidSlugs })} />
-                {inj.severity !== 'niggle' && <p className="text-muted-foreground text-xs">Heavy spinal and impact exercises for this area are removed automatically. If pain is persistent or reproducible, see a physio. <Why ruleIds={['T-SEL-08']} /></p>}
+                {inj.severity !== 'niggle' && <p className="text-muted-foreground text-sm">Heavy spinal and impact exercises for this area are removed automatically. If pain is persistent or reproducible, see a physio. <Why ruleIds={['T-SEL-08']} /></p>}
               </div>
             ))}
           </>
@@ -485,24 +470,18 @@ export function OnboardingWizard({
 
         {step === 6 && (
           <>
-            <p className="text-muted-foreground text-sm">
-              Outside lifting and sports; those are counted separately. <Why ruleIds={['N-MNT-02', 'N-MNT-04']} />
-            </p>
             <div className="space-y-3">
               {LIFESTYLES.map((l) => (
                 <Card key={l.id} active={lifestyle === l.id} onClick={() => setLifestyle(l.id)} title={l.title} line={l.line} />
               ))}
             </div>
-            <p className="text-muted-foreground text-xs">Your starting calories are an estimate; your weight trend fine-tunes them over the first weeks. <Why ruleIds={['N-MNT-03']} /></p>
+            <p className="text-muted-foreground text-sm">Your starting calories are an estimate; your weight trend fine-tunes them over the first weeks. <Why ruleIds={['N-MNT-02', 'N-MNT-04', 'N-MNT-03']} /></p>
           </>
         )}
       </section>
 
-      <div className="bg-background/90 pb-safe fixed inset-x-0 bottom-0 z-20 border-t backdrop-blur">
+      <div className="bar-material pb-safe fixed inset-x-0 bottom-0 z-20 border-t">
         <div className="mx-auto flex max-w-xl gap-3 px-4 py-3">
-          <Button variant="outline" size="lg" onClick={() => setStep(Math.max(0, step - 1))} disabled={step === 0 || pending} aria-label="Back">
-            <ArrowLeft />
-          </Button>
           {step < STEPS.length - 1 ? (
             <Button size="lg" className="flex-1" disabled={!valid[step]} onClick={() => setStep(step + 1)}>
               Continue <ArrowRight />
@@ -531,13 +510,13 @@ function CustomSportButton({ onAdd }: { onAdd: (c: Custom) => void }) {
     );
   const q: [keyof typeof scores, string][] = [
     ['lower', 'How hard on your legs?'],
-    ['upper', 'Arms and shoulders?'],
-    ['impact', 'Jumping / landing?'],
-    ['conditioning', 'Lungs?'],
+    ['upper', 'How hard on your arms and shoulders?'],
+    ['impact', 'How much jumping and landing?'],
+    ['conditioning', 'How hard on your lungs?'],
   ];
   return (
     <div className="bg-card w-full space-y-3 rounded-2xl border p-4">
-      <Input placeholder="Sport name" value={name} onChange={(e) => setName(e.target.value)} className="h-11" />
+      <Input aria-label="Sport name" placeholder="Sport name" value={name} onChange={(e) => setName(e.target.value)} className="h-11" />
       {q.map(([k, label]) => (
         <div key={k} className="space-y-1">
           <p className="text-sm">{label}</p>
@@ -601,7 +580,7 @@ function AvoidPicker({ muscle, exercises, value, onChange }: { muscle: MuscleId;
           ))}
         </div>
       )}
-      {!query && options.length > 0 && <p className="text-muted-foreground text-xs">Suggestions train this area. Search to pick any other exercise.</p>}
+      {!query && options.length > 0 && <p className="text-muted-foreground text-sm">Suggestions train this area. Search to pick any other exercise.</p>}
     </div>
   );
 }

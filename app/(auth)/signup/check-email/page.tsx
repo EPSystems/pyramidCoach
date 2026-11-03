@@ -11,7 +11,7 @@ export default async function CheckEmailPage({ searchParams }: PageProps<'/signu
   const email = typeof sp.email === 'string' ? sp.email : undefined;
   return (
     <AuthShell>
-      <AuthHeading kicker="Almost there" title="Confirm your email" />
+      <AuthHeading title="Confirm your email" />
       <div className="bg-card space-y-4 rounded-2xl border p-5" role="status">
         <MailCheck className="text-volt size-7" aria-hidden />
         <p className="text-muted-foreground text-sm">
