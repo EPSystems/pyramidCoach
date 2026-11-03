@@ -12,6 +12,8 @@ test('2. unconfirmed sign-in → "Confirm your email first" → Resend sends a s
   await signIn(page, email);
   await expect(page.getByText('Confirm your email first')).toBeVisible();
   await expect(page).toHaveURL(/\/login/);
+  // Past auth.email.max_frequency (1s in supabase/config.toml), or Supabase rightly refuses the second email.
+  await page.waitForTimeout(1_500);
   await page.getByRole('button', { name: 'Resend email' }).click();
   await expect(page.getByText('Sent. Check your inbox.')).toBeVisible();
   await waitForMessages(email, 2);
