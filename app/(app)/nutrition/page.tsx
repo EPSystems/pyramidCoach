@@ -44,7 +44,7 @@ export default async function NutritionPage() {
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader kicker={`${PHASE_LABEL[phase]} · week ${weeksIn + 1}`} title="Nutrition" />
-      <div className="rise grid gap-4 px-4 sm:px-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] lg:px-8">
+      <div className="grid gap-4 px-4 sm:px-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] lg:px-8">
         <div className="space-y-4">
           {nt && (
             <section className="bg-card overflow-hidden rounded-2xl border">
@@ -91,7 +91,7 @@ export default async function NutritionPage() {
 
           <section className="bg-card rounded-2xl border p-5">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="font-display text-2xl font-bold uppercase">Bodyweight</h2>
+              <h2 className="text-lg font-semibold">Bodyweight</h2>
               <WeighInForm units={units} />
             </div>
             {hide ? (
@@ -125,7 +125,7 @@ export default async function NutritionPage() {
 
         <div className="space-y-4">
           <section className="bg-card rounded-2xl border p-5">
-            <h2 className="font-display text-2xl font-bold uppercase">Phase</h2>
+            <h2 className="text-lg font-semibold">Phase</h2>
             <div className="mt-3 grid grid-cols-3 gap-3">
               <Stat label="Phase" value={PHASE_LABEL[phase]} />
               <Stat label="Target" value={phase === 'maintain' ? '±0' : `${rate}%`} sub={phase === 'loss' ? 'per week' : phase === 'gain' ? 'per month' : 'stable'} />

@@ -60,7 +60,7 @@ function Card({ active, onClick, title, line }: { active: boolean; onClick: () =
         active ? 'border-volt bg-accent/60 shadow-[0_0_0_1px_var(--volt)]' : 'bg-card hover:border-foreground/30',
       )}
     >
-      <span className="font-display block text-xl font-bold uppercase">{title}</span>
+      <span className="block text-lg font-semibold">{title}</span>
       <span className="text-muted-foreground mt-0.5 block text-sm">{line}</span>
       {active && <Check className="text-volt absolute top-4 right-4 size-5" />}
     </button>
@@ -244,7 +244,7 @@ export function OnboardingWizard({
       </div>
       <h1 className="font-display mt-6 text-5xl leading-none font-extrabold uppercase">{STEPS[step]}</h1>
 
-      <section className="rise mt-6 space-y-5" key={step}>
+      <section className="mt-6 space-y-5" key={step}>
         {step === 0 && (
           <>
             {prefill && <p className="bg-accent/50 text-accent-foreground rounded-xl p-3 text-sm">Your profile was imported. Check each step and confirm.</p>}
@@ -348,8 +348,8 @@ export function OnboardingWizard({
               return (
                 <div key={us.sportId} className="bg-card space-y-3 rounded-2xl border p-4">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="font-display text-2xl font-bold uppercase">{meta?.name}</p>
-                    <button type="button" aria-label="Remove sport" onClick={() => toggleSport(us.sportId)} className="text-muted-foreground grid size-9 place-items-center">
+                    <p className="text-lg font-semibold">{meta?.name}</p>
+                    <button type="button" aria-label="Remove sport" onClick={() => toggleSport(us.sportId)} className="text-muted-foreground grid size-11 place-items-center">
                       <X className="size-4" />
                     </button>
                   </div>
@@ -447,7 +447,7 @@ export function OnboardingWizard({
             </Field>
             {injMuscle && !injuries.find((i) => i.muscleId === injMuscle) && (
               <div className="bg-card space-y-3 rounded-2xl border p-4">
-                <p className="font-display text-2xl font-bold uppercase">{MUSCLE_SHORT[injMuscle]}</p>
+                <p className="text-lg font-semibold">{MUSCLE_SHORT[injMuscle]}</p>
                 <Segmented
                   label="Severity"
                   value={null as Injury['severity'] | null}
@@ -465,7 +465,7 @@ export function OnboardingWizard({
                   <p className="font-medium">
                     {inj.label} <span className="stamp text-danger ml-1">{inj.severity}</span>
                   </p>
-                  <button type="button" aria-label="Remove" className="text-muted-foreground grid size-9 place-items-center" onClick={() => setInjuries(injuries.filter((_, i) => i !== idx))}>
+                  <button type="button" aria-label="Remove" className="text-muted-foreground grid size-11 place-items-center" onClick={() => setInjuries(injuries.filter((_, i) => i !== idx))}>
                     <X className="size-4" />
                   </button>
                 </div>
@@ -547,7 +547,7 @@ function CustomSportButton({ onAdd }: { onAdd: (c: Custom) => void }) {
       <p className="text-sm">Muscles it works hardest</p>
       <div className="flex flex-wrap gap-1.5">
         {(['quads', 'hamstrings', 'glutes', 'calves', 'chest', 'back', 'front_delts', 'side_delts', 'triceps', 'biceps'] as MuscleId[]).map((m) => (
-          <Chip key={m} className="h-9 px-3" active={muscles.includes(m)} onClick={() => setMuscles(muscles.includes(m) ? muscles.filter((x) => x !== m) : [...muscles, m])}>
+          <Chip key={m} className="px-3" active={muscles.includes(m)} onClick={() => setMuscles(muscles.includes(m) ? muscles.filter((x) => x !== m) : [...muscles, m])}>
             {MUSCLE_SHORT[m]}
           </Chip>
         ))}
@@ -585,7 +585,7 @@ function AvoidPicker({ muscle, exercises, value, onChange }: { muscle: MuscleId;
       {value.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {value.map((slug) => (
-            <Chip key={slug} className="h-9 px-3" active onClick={() => onChange(value.filter((x) => x !== slug))}>
+            <Chip key={slug} className="px-3" active onClick={() => onChange(value.filter((x) => x !== slug))}>
               {bySlug.get(slug)?.name ?? slug} <X className="size-3.5" aria-hidden />
             </Chip>
           ))}
@@ -595,7 +595,7 @@ function AvoidPicker({ muscle, exercises, value, onChange }: { muscle: MuscleId;
       {options.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {options.map((e) => (
-            <Chip key={e.slug} className="h-9 px-3" active={false} onClick={() => onChange([...value, e.slug])}>
+            <Chip key={e.slug} className="px-3" active={false} onClick={() => onChange([...value, e.slug])}>
               <Plus className="size-3.5" aria-hidden /> {e.name}
             </Chip>
           ))}

@@ -66,8 +66,8 @@ export function LibraryBrowser({ exercises }: { exercises: LibItem[] }) {
               <div className="flex items-start justify-between gap-2">
                 <p className="font-semibold">{e.name}</p>
                 <div className="flex shrink-0 gap-1">
-                  {e.long && <span className="stamp bg-accent text-accent-foreground rounded px-1">long</span>}
-                  {e.custom && <span className="stamp bg-muted rounded px-1">custom</span>}
+                  {e.long && <span className="stamp bg-accent text-accent-foreground rounded px-1.5">Long</span>}
+                  {e.custom && <span className="stamp bg-muted rounded px-1.5">Custom</span>}
                 </div>
               </div>
               <p className="text-muted-foreground mt-0.5 text-xs">{CATEGORY_LABEL[e.category]}</p>

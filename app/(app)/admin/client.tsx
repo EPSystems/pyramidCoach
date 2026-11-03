@@ -33,7 +33,7 @@ export function AdminClient({
   return (
     <>
       <section className="bg-card rounded-2xl border p-5">
-        <h2 className="font-display text-2xl font-bold uppercase">Users ({users.length})</h2>
+        <h2 className="text-lg font-semibold">Users ({users.length})</h2>
         <p className="text-muted-foreground text-xs">Names and activity only; training and health data stay private to each user.</p>
         {usersError && (
           <p className="border-danger/40 text-danger mt-3 rounded-xl border px-4 py-3 text-sm" role="alert">
@@ -101,7 +101,7 @@ export function AdminClient({
       </section>
 
       <section className="bg-card space-y-3 rounded-2xl border p-5">
-        <h2 className="font-display text-2xl font-bold uppercase">Edit exercise</h2>
+        <h2 className="text-lg font-semibold">Edit exercise</h2>
         <Select
           value={exId}
           onValueChange={(v) => {

@@ -48,14 +48,11 @@ export function ProposalCard({ p }: { p: ProposalView }) {
       <div className="p-4">
         <div className="flex items-center justify-between gap-2">
           <span className="stamp bg-accent text-accent-foreground rounded px-1.5 py-0.5">{KIND_LABEL[p.kind] ?? p.kind}</span>
-          {decided ? <span className={cn('stamp', p.status === 'accepted' ? 'text-ok' : 'text-muted-foreground')}>{p.status}</span> : p.expires_on && <span className="text-muted-foreground text-xs">until {prettyDate(p.expires_on)}</span>}
+          {decided ? <span className={cn('stamp capitalize', p.status === 'accepted' ? 'text-ok' : 'text-muted-foreground')}>{p.status}</span> : p.expires_on && <span className="text-muted-foreground text-xs">until {prettyDate(p.expires_on)}</span>}
         </div>
-        <h3 className="font-display mt-2 text-2xl leading-tight font-bold uppercase">{p.title}</h3>
+        <h3 className="mt-2 text-lg leading-snug font-semibold">{p.title}</h3>
         <p className="text-muted-foreground mt-1 text-sm leading-relaxed">{p.rationale}</p>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Why ruleIds={p.rule_ids} />
-          <span className="stamp text-muted-foreground">{p.rule_ids.join(' · ')}</span>
-        </div>
+        <Why ruleIds={p.rule_ids} className="mt-2" />
         {changes && (
           <ul className="num mt-3 text-sm">
             {changes.map((c) => (

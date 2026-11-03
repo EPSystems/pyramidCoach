@@ -75,7 +75,7 @@ function Section({ title, children, why }: { title: string; children: React.Reac
   return (
     <section className="bg-card space-y-4 rounded-2xl border p-5">
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="font-display text-2xl font-bold uppercase">{title}</h2>
+        <h2 className="text-lg font-semibold">{title}</h2>
         {why && <Why ruleIds={why} />}
       </div>
       {children}
@@ -124,7 +124,7 @@ export function SettingsForms({ training, profile, userSports, catalog, injuries
   const tz = typeof Intl !== 'undefined' ? Intl.supportedValuesOf?.('timeZone') ?? [p.timezone] : [p.timezone];
 
   return (
-    <div className="rise space-y-4 pb-10">
+    <div className="space-y-4 pb-10">
       <Section title="Training" why={['T-SCH-01', 'T-PRI-01', 'T-STA-01']}>
         <Row label="Goal">
           <Select value={t.goal} onValueChange={(v) => setT({ ...t, goal: v as Goal })}>
@@ -174,7 +174,7 @@ export function SettingsForms({ training, profile, userSports, catalog, injuries
         <Row label="Equipment">
           <div className="flex flex-wrap gap-1.5">
             {EQ.map((e) => (
-              <Chip key={e} className="h-9 px-3 capitalize" active={t.equipment.includes(e)} onClick={() => setT({ ...t, equipment: t.equipment.includes(e) ? t.equipment.filter((x) => x !== e) : [...t.equipment, e] })}>
+              <Chip key={e} className="px-3 capitalize" active={t.equipment.includes(e)} onClick={() => setT({ ...t, equipment: t.equipment.includes(e) ? t.equipment.filter((x) => x !== e) : [...t.equipment, e] })}>
                 {e}
               </Chip>
             ))}
@@ -204,7 +204,7 @@ export function SettingsForms({ training, profile, userSports, catalog, injuries
               {TRACKED_MUSCLES.map((m) => (
                 <Chip
                   key={m}
-                  className="h-9 px-3"
+                  className="px-3"
                   active={t.specialization.includes(m)}
                   onClick={() => setT({ ...t, specialization: t.specialization.includes(m) ? t.specialization.filter((x) => x !== m) : [...t.specialization, m].slice(-2) })}
                 >
@@ -219,7 +219,7 @@ export function SettingsForms({ training, profile, userSports, catalog, injuries
             <Row label="Main lifts">
               <div className="flex flex-wrap gap-1.5">
                 {(['squat', 'bench', 'deadlift', 'ohp'] as MainLift[]).map((l) => (
-                  <Chip key={l} className="h-9 px-3 capitalize" active={t.strengthLifts.includes(l)} onClick={() => setT({ ...t, strengthLifts: t.strengthLifts.includes(l) ? t.strengthLifts.filter((x) => x !== l) : [...t.strengthLifts, l] })}>
+                  <Chip key={l} className="px-3 capitalize" active={t.strengthLifts.includes(l)} onClick={() => setT({ ...t, strengthLifts: t.strengthLifts.includes(l) ? t.strengthLifts.filter((x) => x !== l) : [...t.strengthLifts, l] })}>
                     {l === 'ohp' ? 'OHP' : l}
                   </Chip>
                 ))}
@@ -319,7 +319,7 @@ export function SettingsForms({ training, profile, userSports, catalog, injuries
                 // Applies at once (and caches locally); saving to the profile carries it to other devices.
                 setTheme(v);
                 void updateTheme(v).then((r) => !r.ok && toast.error('Theme applied here, but could not be saved to your account.'));
-              }} options={[{ value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }, { value: 'system', label: 'System' }]} />
+              }} options={[{ value: 'system', label: 'System' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }]} />
           </Row>
         </div>
         <label className="flex items-center justify-between gap-3 text-sm">
@@ -543,7 +543,7 @@ function InjuriesEditor({ injuries, exercises }: { injuries: Inj[]; exercises: {
                 .map((e) => (
                   <Chip
                     key={e.id}
-                    className="h-9 px-3"
+                    className="px-3"
                     active={editing.avoidExerciseIds.includes(e.id)}
                     onClick={() => setEditing({ ...editing, avoidExerciseIds: editing.avoidExerciseIds.includes(e.id) ? editing.avoidExerciseIds.filter((x) => x !== e.id) : [...editing.avoidExerciseIds, e.id] })}
                   >

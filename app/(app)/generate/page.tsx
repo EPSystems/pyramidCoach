@@ -12,7 +12,7 @@ export default async function GeneratePage({ searchParams }: PageProps<'/generat
   const m = typeof sp.muscle === 'string' && (TRACKED_MUSCLES as readonly string[]).includes(sp.muscle) ? (sp.muscle as TrackedMuscle) : null;
   return (
     <div className="mx-auto max-w-5xl">
-      <PageHeader kicker="Extra session · travel · short on time" title="Generate" />
+      <PageHeader back={{ href: '/today', label: 'Today' }} kicker="Extra session · travel · short on time" title="Generate" />
       <div className="px-4 sm:px-6 lg:px-8">
         <GenerateForm initialMuscle={m} units={ctx.units} today={ctx.today} />
       </div>

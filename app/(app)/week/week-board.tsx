@@ -66,8 +66,8 @@ export function WeekBoard({ days, today }: { days: DayCell[]; today: string }) {
   const futureDates = days.map((d) => d.date).filter((d) => d >= today);
 
   return (
-    <div className="-mx-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
-      <ol className="grid min-w-[44rem] grid-cols-7 gap-2 lg:min-w-0">
+    <div>
+      <ol className="grid gap-2 lg:grid-cols-7">
         {days.map((d) => {
           const isRest = d.sessions.length === 0 && d.sports.length === 0;
           return (
@@ -82,13 +82,23 @@ export function WeekBoard({ days, today }: { days: DayCell[]; today: string }) {
               onDragLeave={() => setOverDate(null)}
               onDrop={() => drop(d.date)}
               className={cn(
-                'bg-card flex min-h-44 flex-col gap-2 rounded-2xl border p-2.5 transition-colors',
+                'bg-card flex flex-col gap-2 rounded-2xl border p-3 transition-colors lg:min-h-44 lg:p-2.5',
                 d.isToday && 'border-volt shadow-[0_0_0_1px_var(--volt)]',
-                d.isPast && 'opacity-70',
+                d.isPast && 'bg-transparent',
                 overDate === d.date && 'bg-accent',
               )}
             >
-              <p className={cn('stamp', d.isToday ? 'text-volt' : 'text-muted-foreground')}>{prettyDate(d.date)}</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className={cn('stamp', d.isToday ? 'text-foreground font-semibold' : 'text-muted-foreground')}>
+                  {d.isToday && 'Today · '}
+                  {prettyDate(d.date)}
+                </p>
+                {isRest && (
+                  <p className="text-muted-foreground flex items-center gap-1 text-sm lg:hidden">
+                    <Moon className="size-3.5" /> Rest
+                  </p>
+                )}
+              </div>
               {d.sessions.map((s) => {
                 const missed = d.isPast && s.status === 'planned';
                 return (
@@ -97,21 +107,21 @@ export function WeekBoard({ days, today }: { days: DayCell[]; today: string }) {
                     draggable={s.status === 'planned'}
                     onDragStart={() => setDragId(s.id)}
                     className={cn(
-                      'group relative rounded-xl p-2 text-sm',
+                      'group relative rounded-xl p-3 text-base lg:p-2 lg:text-sm',
                       s.status === 'done' ? 'bg-volt/15' : missed ? 'bg-danger/10' : 'bg-muted',
                       s.status === 'planned' && 'cursor-grab active:cursor-grabbing',
                     )}
                   >
-                    <Link href={`/session/${s.id}`} className={cn('block font-semibold leading-tight underline-offset-2 hover:underline', s.status === 'skipped' && 'line-through opacity-60')}>
+                    <Link href={`/session/${s.id}`} className={cn('block pr-6 font-semibold leading-tight underline-offset-2 hover:underline', s.status === 'skipped' && 'text-muted-foreground line-through')}>
                       {s.title}
                     </Link>
-                    <p className={cn('text-muted-foreground mt-0.5 text-xs', s.status === 'skipped' && 'opacity-60')}>
+                    <p className="text-muted-foreground mt-0.5 text-sm lg:text-xs">
                       {missed ? 'Missed' : STATUS[s.status]} · ~{s.est}m{s.kind !== 'lift' ? ` · ${s.kind}` : ''}
                     </p>
                     {s.status === 'done' && <Check className="text-volt absolute top-2 right-2 size-4" />}
                     {s.status === 'planned' && <GripVertical className="text-muted-foreground absolute top-2 right-1.5 hidden size-4 lg:block" />}
                     {(s.status === 'planned' || (s.status === 'skipped' && !d.isPast)) && (
-                      <div className="mt-1.5 flex flex-col gap-1 [&_button]:h-8 [&_button]:w-full [&_button]:px-2 [&_button]:text-xs">
+                      <div className="mt-1.5 -mb-1 flex gap-2 lg:flex-col lg:gap-1 lg:[&_button]:h-8 lg:[&_button]:w-full lg:[&_button]:px-2 lg:[&_button]:text-xs">
                         {s.status === 'planned' && (
                           <div className="lg:hidden">
                             <MoveSessionDialog sessionId={s.id} title={s.title} dates={futureDates.filter((x) => x !== d.date)} triggerLabel="Move" />
@@ -133,11 +143,11 @@ export function WeekBoard({ days, today }: { days: DayCell[]; today: string }) {
                 );
               })}
               {d.sports.map((sp) => (
-                <div key={sp.name} className="border-chart-2/40 text-chart-2 rounded-xl border border-dashed p-2 text-xs">
-                  <p className="flex items-center gap-1 font-semibold">
-                    <Medal className="size-3.5" /> {sp.name.split(' ')[0]}
+                <div key={sp.name} className="border-chart-2/40 rounded-xl border border-dashed p-3 text-sm lg:p-2 lg:text-xs">
+                  <p className="flex items-center gap-1.5 font-semibold">
+                    <Medal className="text-chart-2 size-4 lg:size-3.5" /> {sp.name.split(' ')[0]}
                   </p>
-                  <p className="opacity-80">
+                  <p className="text-muted-foreground">
                     {sp.intensity} · {sp.minutes}m
                   </p>
                 </div>
@@ -148,7 +158,7 @@ export function WeekBoard({ days, today }: { days: DayCell[]; today: string }) {
                 </p>
               ))}
               {isRest && (
-                <p className="text-muted-foreground mt-auto flex items-center gap-1 text-xs">
+                <p className="text-muted-foreground mt-auto hidden items-center gap-1 text-xs lg:flex">
                   <Moon className="size-3.5" /> Rest
                 </p>
               )}

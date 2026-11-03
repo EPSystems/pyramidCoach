@@ -96,7 +96,7 @@ export function BodyExplorer({ info, adjustments }: { info: Partial<Record<Muscl
 
       {/* Accessible list alternative (Section 11). */}
       <section className="bg-card h-fit rounded-2xl border p-4">
-        <h2 className="font-display text-xl font-bold uppercase">Muscles</h2>
+        <h2 className="text-lg font-semibold">Muscles</h2>
         <ul className="mt-2 divide-y">
           {TRACKED_MUSCLES.map((m) => {
             const mi = info[m]!;
@@ -122,7 +122,7 @@ export function BodyExplorer({ info, adjustments }: { info: Partial<Record<Muscl
           {sel && i && (
             <>
               <SheetHeader>
-                <SheetTitle className="font-display text-3xl uppercase">{MUSCLE_SHORT[sel]}</SheetTitle>
+                <SheetTitle className="text-lg font-semibold">{MUSCLE_SHORT[sel]}</SheetTitle>
                 <SheetDescription>
                   {i.target != null ? (
                     <>

@@ -17,7 +17,7 @@ export default async function CheckinPage() {
   ]);
   return (
     <div className="mx-auto max-w-xl">
-      <PageHeader kicker={prettyDate(today)} title="Check-in" />
+      <PageHeader back={{ href: '/today', label: 'Today' }} kicker={prettyDate(today)} title="Check-in" />
       <div className="space-y-4 px-4 sm:px-6">
         <section className="bg-card rounded-2xl border p-5">
           <CheckinCard
@@ -34,7 +34,7 @@ export default async function CheckinPage() {
         </section>
         {(recent?.length ?? 0) > 0 && (
           <section className="bg-card rounded-2xl border p-5">
-            <h2 className="font-display text-xl font-bold uppercase">Last 7 days</h2>
+            <h2 className="text-lg font-semibold">Last 7 days</h2>
             <table className="num mt-2 w-full text-sm">
               <thead className="text-muted-foreground text-left text-xs">
                 <tr>

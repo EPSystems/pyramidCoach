@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, BatteryLow, CalendarClock, Medal } from 'lucide-react';
+import { ArrowRight, BatteryLow, CalendarClock, ChevronRight, Medal } from 'lucide-react';
 import { toast } from 'sonner';
 import { logSport, moveSession, startSession, swapForLightest } from '@/lib/actions/training';
 import { Button } from '@/components/ui/button';
@@ -11,26 +11,31 @@ import { Input } from '@/components/ui/input';
 import { Segmented, Why } from '@/components/app/bits';
 import { prettyDate } from '@/lib/utils/dates';
 
-export function DrainedButton({ sessionId }: { sessionId: string }) {
+/** One row of the grouped action list on Today. */
+export const ACTION_ROW = 'hover:bg-muted active:bg-muted flex min-h-13 w-full items-center gap-3 px-4 py-3 text-left text-[0.95rem] font-medium transition-colors disabled:opacity-50';
+
+export function DrainedButton({ sessionId, asRow }: { sessionId: string; asRow?: boolean }) {
   const [pending, start] = useTransition();
   const router = useRouter();
-  return (
-    <Button
-      variant="outline"
-      className="justify-start"
-      disabled={pending}
-      onClick={() =>
-        start(async () => {
-          const r = await swapForLightest(sessionId);
-          if (!r.ok) toast.error(r.error);
-          else {
-            toast.success(`Swapped. Today is now ${r.data?.title}`);
-            router.refresh();
-          }
-        })
+  const swap = () =>
+    start(async () => {
+      const r = await swapForLightest(sessionId);
+      if (!r.ok) toast.error(r.error);
+      else {
+        toast.success(`Swapped. Today is now ${r.data?.title}`);
+        router.refresh();
       }
-    >
-      <BatteryLow /> Feeling drained? Swap for the lightest session
+    });
+  if (asRow) {
+    return (
+      <button type="button" className={ACTION_ROW} disabled={pending} onClick={swap}>
+        <BatteryLow className="text-muted-foreground size-5" /> <span className="flex-1">Feeling drained? Swap for a lighter session</span>
+      </button>
+    );
+  }
+  return (
+    <Button variant="outline" className="justify-start" disabled={pending} onClick={swap}>
+      <BatteryLow /> Swap for the lightest session
     </Button>
   );
 }
@@ -58,7 +63,7 @@ export function StartSessionButton({ sessionId, label, variant }: { sessionId: s
   );
 }
 
-export function MoveSessionDialog({ sessionId, title, dates, triggerLabel = "Move today's session" }: { sessionId: string; title: string; dates: string[]; triggerLabel?: string }) {
+export function MoveSessionDialog({ sessionId, title, dates, triggerLabel = "Move today's session", asRow }: { sessionId: string; title: string; dates: string[]; triggerLabel?: string; asRow?: boolean }) {
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState(dates[0] ?? '');
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -77,13 +82,19 @@ export function MoveSessionDialog({ sessionId, title, dates, triggerLabel = "Mov
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="justify-start">
-          <CalendarClock /> {triggerLabel}
-        </Button>
+        {asRow ? (
+          <button type="button" className={ACTION_ROW}>
+            <CalendarClock className="text-muted-foreground size-5" /> <span className="flex-1">{triggerLabel}</span> <ChevronRight className="text-muted-foreground size-4" />
+          </button>
+        ) : (
+          <Button variant="outline" className="justify-start">
+            <CalendarClock /> {triggerLabel}
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="font-display text-2xl uppercase">Move {title}</DialogTitle>
+          <DialogTitle className="text-lg font-semibold">Move {title}</DialogTitle>
           <DialogDescription>
             Pick a day. Two hard sessions never go on the same day. <Why ruleIds={['T-FAT-07', 'T-SCH-04']} />
           </DialogDescription>
@@ -106,9 +117,9 @@ export function MoveSessionDialog({ sessionId, title, dates, triggerLabel = "Mov
         {warnings.length > 0 && (
           <div className="bg-warn/15 text-warn rounded-lg p-3 text-sm">
             {warnings.map((w) => (
-              <p key={w}>⚠ {w}</p>
+              <p key={w}>{w}</p>
             ))}
-            <p className="text-foreground mt-1">OK anyway?</p>
+            <p className="text-foreground mt-1">Move it anyway?</p>
           </div>
         )}
         <DialogFooter>
@@ -142,13 +153,13 @@ export function LogSportDialog({ sports, defaultSport }: { sports: { id: string;
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="justify-start">
-          <Medal /> Log a sport session
-        </Button>
+        <button type="button" className={ACTION_ROW}>
+          <Medal className="text-muted-foreground size-5" /> <span className="flex-1">Log a sport session</span> <ChevronRight className="text-muted-foreground size-4" />
+        </button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="font-display text-2xl uppercase">Log sport</DialogTitle>
+          <DialogTitle className="text-lg font-semibold">Log sport</DialogTitle>
           <DialogDescription>
             Session effort on a 1–10 scale. <Why ruleIds={['N-SPT-01']} />
           </DialogDescription>

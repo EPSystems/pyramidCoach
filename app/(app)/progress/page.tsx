@@ -108,10 +108,10 @@ export default async function ProgressPage({ searchParams }: PageProps<'/progres
           ))}
         </nav>
       </PageHeader>
-      <div className="rise space-y-4 px-4 sm:px-6 lg:px-8">
+      <div className="space-y-4 px-4 sm:px-6 lg:px-8">
         <section className="bg-card rounded-2xl border p-5">
           <div className="flex items-baseline justify-between">
-            <h2 className="font-display text-2xl font-bold uppercase">Main lifts · e1RM</h2>
+            <h2 className="text-lg font-semibold">Main lifts · e1RM</h2>
             <Why ruleIds={['T-EST-01']} label="How?" />
           </div>
           <p className="text-muted-foreground text-xs">
@@ -173,7 +173,7 @@ export default async function ProgressPage({ searchParams }: PageProps<'/progres
 
         <section className="bg-card rounded-2xl border p-5">
           <div className="flex items-baseline justify-between">
-            <h2 className="font-display text-2xl font-bold uppercase">Weekly sets · {VOLUME_WEEKS} weeks</h2>
+            <h2 className="text-lg font-semibold">Weekly sets · {VOLUME_WEEKS} weeks</h2>
             <Why ruleIds={['T-VOL-05', 'T-VOL-06']} />
           </div>
           <p className="text-muted-foreground text-xs">Same scale (0–{maxVol}) on every panel; shaded band = this block’s target ±1.</p>
@@ -199,7 +199,7 @@ export default async function ProgressPage({ searchParams }: PageProps<'/progres
         <div className="grid gap-4 lg:grid-cols-2">
           <section className="bg-card rounded-2xl border p-5">
             <div className="flex items-baseline justify-between">
-              <h2 className="font-display text-2xl font-bold uppercase">Bodyweight</h2>
+              <h2 className="text-lg font-semibold">Bodyweight</h2>
               <Why ruleIds={['N-WGT-01', 'N-WGT-02', 'N-WGT-03']} />
             </div>
             {ctx.profile.hide_bodyweight ? (
@@ -212,7 +212,7 @@ export default async function ProgressPage({ searchParams }: PageProps<'/progres
             </div>
           </section>
           <section className="bg-card rounded-2xl border p-5">
-            <h2 className="font-display text-2xl font-bold uppercase">Adherence</h2>
+            <h2 className="text-lg font-semibold">Adherence</h2>
             <p className="text-muted-foreground text-xs">Sessions done vs planned per {bucket}</p>
             <div className="mt-3">
               <AdherenceBars data={adherence} bucket={bucket} />
@@ -221,7 +221,7 @@ export default async function ProgressPage({ searchParams }: PageProps<'/progres
         </div>
 
         <section className="bg-card rounded-2xl border p-5">
-          <h2 className="font-display text-2xl font-bold uppercase">Your data</h2>
+          <h2 className="text-lg font-semibold">Your data</h2>
           <p className="text-muted-foreground text-xs">Full history, whatever range is shown above.</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {EXPORTS.map((e) => (

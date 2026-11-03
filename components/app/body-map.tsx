@@ -123,7 +123,7 @@ export function BodyMap({ side = 'both', className, interactive = true, ...rest 
               role="tab"
               aria-selected={view === v}
               onClick={() => setView(v)}
-              className={cn('h-9 rounded-md px-4 text-sm font-medium capitalize', view === v ? 'bg-background shadow-sm' : 'text-muted-foreground')}
+              className={cn('h-11 rounded-md px-4 text-sm font-medium capitalize', view === v ? 'bg-background shadow-sm' : 'text-muted-foreground')}
             >
               {v}
             </button>

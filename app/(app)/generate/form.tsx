@@ -100,7 +100,7 @@ export function GenerateForm({ initialMuscle, units, today }: { initialMuscle: T
           {preset === 'custom' && (
             <div className="flex flex-wrap gap-1.5 pt-1">
               {EQ.map((e) => (
-                <Chip key={e} className="h-9 px-3 capitalize" active={equipment.includes(e)} onClick={() => setEquipment(equipment.includes(e) ? equipment.filter((x) => x !== e) : [...equipment, e])}>
+                <Chip key={e} className="px-3 capitalize" active={equipment.includes(e)} onClick={() => setEquipment(equipment.includes(e) ? equipment.filter((x) => x !== e) : [...equipment, e])}>
                   {e}
                 </Chip>
               ))}
@@ -146,7 +146,7 @@ export function GenerateForm({ initialMuscle, units, today }: { initialMuscle: T
         ) : (
           <>
             <p className="stamp text-muted-foreground">~{preview.estMinutes} min</p>
-            <h2 className="font-display text-3xl font-extrabold uppercase">{preview.title}</h2>
+            <h2 className="text-xl font-semibold">{preview.title}</h2>
             <ol className="mt-3 divide-y">
               {preview.exercises.map((e, i) => (
                 <li key={i} className="flex items-center justify-between gap-3 py-2">

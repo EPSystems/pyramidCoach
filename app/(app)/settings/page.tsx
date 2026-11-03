@@ -1,4 +1,6 @@
+import Link from 'next/link';
 import type { Metadata } from 'next';
+import { Button } from '@/components/ui/button';
 import { requireOnboarded, loadExercises } from '@/lib/server/context';
 import { PageHeader } from '@/components/app/bits';
 import { SettingsForms } from './forms';
@@ -11,7 +13,13 @@ export default async function SettingsPage() {
   const [{ data: sports }, exercises] = await Promise.all([supabase.from('sports').select('*').order('name'), loadExercises(supabase)]);
   return (
     <div className="mx-auto max-w-4xl">
-      <PageHeader kicker={ctx.user.email ?? ''} title="Settings" />
+      <PageHeader kicker={ctx.user.email ?? ''} title="Settings" back={{ href: '/today', label: 'Today' }}>
+        {ctx.isAdmin && (
+          <Button asChild variant="outline" className="lg:hidden">
+            <Link href="/admin">Admin</Link>
+          </Button>
+        )}
+      </PageHeader>
       <div className="px-4 sm:px-6 lg:px-8">
         <SettingsForms
           training={{

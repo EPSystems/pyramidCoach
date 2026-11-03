@@ -8,7 +8,7 @@ const log = createLogger('providers');
 
 export type ThemePref = 'dark' | 'light' | 'system';
 const ThemeCtx = createContext<{ theme: ThemePref; resolved: 'dark' | 'light'; setTheme: (t: ThemePref) => void }>({
-  theme: 'dark',
+  theme: 'system',
   resolved: 'dark',
   setTheme: () => {},
 });
@@ -16,11 +16,11 @@ export const useTheme = () => useContext(ThemeCtx);
 
 function readPref(): ThemePref {
   try {
-    return (localStorage.getItem('pc-theme') as ThemePref) || 'dark';
+    return (localStorage.getItem('pc-theme') as ThemePref) || 'system';
   } catch (e) {
-    // Blocked storage (private mode, strict settings) is expected; fall back to dark.
+    // Blocked storage (private mode, strict settings) is expected; follow the system.
     log.debug('theme read from localStorage failed', { err: e });
-    return 'dark';
+    return 'system';
   }
 }
 
@@ -34,7 +34,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         mutationCache: new MutationCache({ onError: (err, _vars, _ctx, mutation) => log.error('mutation failed', { mutationKey: mutation.options.mutationKey ? JSON.stringify(mutation.options.mutationKey) : undefined, err }) }),
       }),
   );
-  const [theme, setThemeState] = useState<ThemePref>(() => (typeof window === 'undefined' ? 'dark' : readPref()));
+  const [theme, setThemeState] = useState<ThemePref>(() => (typeof window === 'undefined' ? 'system' : readPref()));
   const [resolved, setResolved] = useState<'dark' | 'light'>(() => (typeof document !== 'undefined' && !document.documentElement.classList.contains('dark') ? 'light' : 'dark'));
 
   const apply = useCallback((t: ThemePref) => {

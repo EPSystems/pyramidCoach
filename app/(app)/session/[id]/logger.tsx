@@ -180,10 +180,15 @@ export function Logger({
 
   const totalSets = exercises.filter((e) => !e.skipped).reduce((a, e) => a + (rows[e.plannedId + e.exerciseId]?.length ?? 0), 0);
   const doneSets = exercises.reduce((a, e) => a + (rows[e.plannedId + e.exerciseId]?.filter((r) => r.logged).length ?? 0), 0);
+  const restDone = timer.rest != null && timer.elapsed >= timer.rest.target;
+  // The end of a rest is felt as well as seen: the phone is often face up on a bench. (No vibration API on iOS.)
+  useEffect(() => {
+    if (restDone) navigator.vibrate?.(200);
+  }, [restDone]);
 
   return (
     <div className="mx-auto max-w-3xl pb-28">
-      <header className="bg-background/90 sticky top-0 z-30 border-b px-4 py-3 backdrop-blur sm:px-6">
+      <header className="bar-material sticky top-[env(safe-area-inset-top)] z-30 border-b px-4 py-3 sm:px-6">
         <div className="flex items-center gap-3">
           <Link href="/today" className="bg-muted grid size-11 shrink-0 place-items-center rounded-lg" aria-label="Back to Today">
             <ArrowLeft className="size-5" />
@@ -204,7 +209,7 @@ export function Logger({
         </div>
       </header>
 
-      <div className="rise space-y-4 px-4 pt-4 sm:px-6">
+      <div className="space-y-4 px-4 pt-4 sm:px-6">
         {exercises.map((ex) => (
           <ExerciseCard
             key={ex.plannedId + ex.exerciseId}
@@ -224,22 +229,27 @@ export function Logger({
           type="button"
           onClick={timer.stop}
           className={cn(
-            'fixed inset-x-3 bottom-20 z-40 flex items-center gap-3 rounded-2xl border px-4 py-3 text-left shadow-lg backdrop-blur lg:bottom-6 lg:left-auto lg:w-80',
-            timer.elapsed >= timer.rest.target ? 'bg-volt text-volt-ink border-transparent' : 'bg-card/95',
+            'fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 flex min-h-16 items-center gap-3 rounded-2xl border px-4 py-3 text-left shadow-lg lg:bottom-6 lg:left-auto lg:w-80',
+            restDone ? 'bg-volt text-volt-ink border-transparent' : 'bg-card',
           )}
-          aria-live="polite"
-          aria-label="Rest timer, tap to dismiss"
+          aria-label={restDone ? `Rest done. Dismiss timer` : `Rest timer for ${timer.rest.name}, ${mmss(timer.elapsed)} of ${mmss(timer.rest.target)}. Dismiss`}
         >
           <Timer className="size-5 shrink-0" />
           <span className="min-w-0 flex-1">
-            <span className="stamp block opacity-70">Rest · {timer.rest.name}</span>
+            <span className="stamp block truncate">
+              {restDone ? 'Rest done' : 'Rest'} · {timer.rest.name}
+            </span>
             <span className="num font-display text-2xl font-bold">
-              {mmss(timer.elapsed)} <span className="text-base opacity-60">/ {mmss(timer.rest.target)}</span>
+              {mmss(timer.elapsed)} <span className="text-base font-semibold opacity-80">/ {mmss(timer.rest.target)}</span>
             </span>
           </span>
-          <X className="size-4 opacity-60" />
+          <X className="size-4 opacity-80" />
         </button>
       )}
+      {/* Announced once at the end, not on every tick of the clock. */}
+      <p role="status" className="sr-only">
+        {restDone ? 'Rest done' : ''}
+      </p>
 
       <FinishDialog open={finishing} onOpenChange={setFinishing} session={session} exercises={exercises} rows={rows} weekBefore={weekBefore} units={units} onFinished={timer.stop} />
     </div>
@@ -270,6 +280,9 @@ function ExerciseCard({
   const [, start] = useTransition();
   const firstLogged = rows[0]?.logged;
   const allDone = rows.length > 0 && rows.every((r) => r.logged);
+  // One open row at a time: the next set to log, unless another unlogged set was tapped. The rest stay one line each.
+  const [opened, setOpened] = useState<number | null>(null);
+  const openIdx = opened != null && rows[opened] && !rows[opened].logged ? opened : rows.findIndex((r) => !r.logged);
 
   const patch = (i: number, p: Partial<Row>) => setRows((prev) => prev.map((r, j) => (j === i ? { ...r, ...p } : r)));
 
@@ -341,12 +354,13 @@ function ExerciseCard({
   }
 
   return (
-    <section className={cn('bg-card overflow-hidden rounded-2xl border transition-opacity', skipped && 'opacity-50', allDone && 'border-volt/40')}>
+    <section className={cn('bg-card overflow-hidden rounded-2xl border', allDone && !skipped && 'border-volt/40')}>
       <div className="flex items-start gap-2 px-4 pt-4">
         <div className="min-w-0 flex-1">
-          <Link href={`/library/${ex.slug}`} className="font-display text-2xl leading-tight font-bold uppercase underline-offset-4 hover:underline">
+          <Link href={`/library/${ex.slug}`} className={cn('text-lg leading-snug font-semibold underline-offset-4 hover:underline', skipped && 'text-muted-foreground line-through')}>
             {ex.name}
           </Link>
+          {skipped && <p className="text-muted-foreground text-sm">Skipped</p>}
           <p className="num text-muted-foreground mt-0.5 text-sm">
             {ex.isSingle ? (ex.label ?? 'Top single') : formatRx({ sets: rows.length, ...ex.rx })} · rest {mmss(ex.restSeconds)}
           </p>
@@ -402,7 +416,7 @@ function ExerciseCard({
                 })
               }
             >
-              <SkipForward /> {skipped ? 'Un-skip' : 'Skip exercise'}
+              <SkipForward /> {skipped ? 'Unskip' : 'Skip exercise'}
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setNoteOpen(true)}>
               <StickyNote /> Note
@@ -418,76 +432,92 @@ function ExerciseCard({
       {/* Rendered even before a load exists so entering the first weight doesn't shift the rows under the user's thumb. */}
       {!firstLogged && !skipped && !ex.isSingle && (
         <div className="flex gap-2 px-4 pt-3">
-          <button type="button" disabled={rows[0]?.load == null} onClick={() => nudgeAll(1)} className="bg-muted inline-flex h-9 items-center gap-1 rounded-full px-3 text-xs font-medium disabled:opacity-40">
-            <TrendingUp className="text-ok size-3.5" /> Feeling strong +1 step
+          <button type="button" disabled={rows[0]?.load == null} onClick={() => nudgeAll(1)} className="bg-muted inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full px-3 text-sm font-medium disabled:opacity-40">
+            <TrendingUp className="text-ok size-4" /> Strong: +1 step
           </button>
-          <button type="button" disabled={rows[0]?.load == null} onClick={() => nudgeAll(-1)} className="bg-muted inline-flex h-9 items-center gap-1 rounded-full px-3 text-xs font-medium disabled:opacity-40">
-            <TrendingDown className="text-warn size-3.5" /> Feeling flat −1 step
+          <button type="button" disabled={rows[0]?.load == null} onClick={() => nudgeAll(-1)} className="bg-muted inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full px-3 text-sm font-medium disabled:opacity-40">
+            <TrendingDown className="text-warn size-4" /> Flat: −1 step
           </button>
         </div>
       )}
 
-      <ol className="mt-3 divide-y border-t">
-        {rows.map((r, i) => (
-          // Mobile: steppers on line 1, RIR + log button on line 2 (one line was ~390px wide and clipped the log button). sm+: log button returns to line 1.
-          <li key={i} className={cn('flex flex-wrap items-center gap-2 px-3 py-3 sm:px-4', r.logged && 'bg-volt/[0.06]')}>
-            <div className="flex min-w-0 basis-full items-center gap-2 sm:flex-1 sm:basis-auto">
-              <span className="num text-muted-foreground w-5 shrink-0 text-center text-sm font-semibold">{i + 1}</span>
+      {!skipped && <ol className="mt-3 divide-y border-t">
+        {rows.map((r, i) => i === openIdx ? (
+          <li key={i} className="space-y-3 p-4">
+            <p className="stamp text-muted-foreground num">
+              Set {i + 1} of {rows.length}
+            </p>
+            <div className="flex min-w-0 items-center gap-2">
               <LoadInput key={`${r.load}-${units}`} value={r.load} units={units} step={ex.increment} disabled={r.logged} onChange={(v) => patch(i, { load: v })} />
               <span className="text-muted-foreground text-sm">×</span>
               <div className="flex items-center">
-                <button type="button" disabled={r.logged} onClick={() => patch(i, { reps: Math.max(0, r.reps - 1) })} className="bg-muted grid size-11 place-items-center rounded-l-lg disabled:opacity-40" aria-label={`Set ${i + 1} fewer reps`}>
+                <button type="button" disabled={r.logged} onClick={() => patch(i, { reps: Math.max(0, r.reps - 1) })} className="bg-muted active:bg-accent grid size-11 place-items-center rounded-l-lg disabled:opacity-40" aria-label={`Set ${i + 1} fewer reps`}>
                   <Minus className="size-4" />
                 </button>
                 <output className="num bg-muted/50 grid h-11 w-10 place-items-center text-lg font-semibold" aria-label={`Set ${i + 1} reps`}>
                   {r.reps}
                 </output>
-                <button type="button" disabled={r.logged} onClick={() => patch(i, { reps: r.reps + 1 })} className="bg-muted grid size-11 place-items-center rounded-r-lg disabled:opacity-40" aria-label={`Set ${i + 1} more reps`}>
+                <button type="button" disabled={r.logged} onClick={() => patch(i, { reps: r.reps + 1 })} className="bg-muted active:bg-accent grid size-11 place-items-center rounded-r-lg disabled:opacity-40" aria-label={`Set ${i + 1} more reps`}>
                   <Plus className="size-4" />
                 </button>
               </div>
             </div>
+            <div role="group" aria-label={`Reps left in reserve, set ${i + 1}`}>
+              <p className="text-muted-foreground num mb-1.5 text-sm">
+                Reps left (RIR) · target {ex.rx.rirMin === ex.rx.rirMax ? ex.rx.rirMin : `${ex.rx.rirMin}–${ex.rx.rirMax}`}
+              </p>
+              <div className="grid grid-cols-5 gap-1.5">
+                {[0, 1, 2, 3, 4].map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => patch(i, { rir: v })}
+                    aria-pressed={r.rir === v}
+                    className={cn(
+                      'num h-11 rounded-lg text-base font-semibold transition-colors',
+                      r.rir === v ? 'bg-foreground text-background' : v >= ex.rx.rirMin && v <= ex.rx.rirMax ? 'bg-accent text-accent-foreground' : 'bg-muted text-muted-foreground',
+                    )}
+                  >
+                    {v === 4 ? '4+' : v}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <Button size="lg" className="w-full" onClick={() => void toggle(i)} disabled={saving.has(i)} aria-busy={saving.has(i)} aria-pressed={false} aria-label={`Log set ${i + 1}`}>
+              <Check className="size-5" strokeWidth={3} /> Log set
+            </Button>
+          </li>
+        ) : (
+          <li key={i} className={cn('flex min-h-14 items-center gap-2 py-1.5 pr-3 pl-4', r.logged && 'bg-volt/[0.06]')}>
+            {r.logged ? (
+              <SetSummary index={i} row={r} units={units} />
+            ) : (
+              <button type="button" onClick={() => setOpened(i)} aria-label={`Edit set ${i + 1}`} className="-my-1.5 flex min-h-14 min-w-0 flex-1 items-center text-left">
+                <SetSummary index={i} row={r} units={units} />
+              </button>
+            )}
             {r.pending && (
-              <span className="stamp text-muted-foreground order-3 inline-flex items-center gap-1 sm:order-2" title="Saved on this phone; syncs when you're back online">
+              <span className="stamp text-muted-foreground inline-flex shrink-0 items-center gap-1" title="Saved on this phone; syncs when you're back online">
                 <CloudOff className="size-3.5" /> Pending sync
               </span>
             )}
+            {/* Empty circle to do, filled circle with a check when done: readable without the colour. */}
             <button
               type="button"
               onClick={() => void toggle(i)}
-              disabled={skipped || saving.has(i)}
+              disabled={saving.has(i)}
               aria-busy={saving.has(i)}
               aria-pressed={r.logged}
               aria-label={r.logged ? `Undo set ${i + 1}${r.pending ? ' (pending sync)' : ''}` : `Log set ${i + 1}`}
-              className={cn(
-                'order-3 ml-auto grid size-12 shrink-0 place-items-center rounded-xl border-2 transition-all sm:order-2',
-                r.logged ? 'bg-volt text-volt-ink border-volt pop' : 'border-volt/60 text-volt hover:bg-volt/10',
-                r.pending && 'border-dashed opacity-80',
-              )}
+              className="grid size-11 shrink-0 place-items-center rounded-full"
             >
-              <Check className="size-6" strokeWidth={3} />
+              <span className={cn('grid size-8 place-items-center rounded-full border-2', r.logged ? 'bg-volt text-volt-ink border-volt pop' : 'border-muted-foreground/50', r.pending && 'border-dashed opacity-80')}>
+                {r.logged && <Check className="size-5" strokeWidth={3} />}
+              </span>
             </button>
-            <div className="order-2 flex items-center gap-1.5 sm:order-3 sm:basis-full sm:pl-7">
-              <span className="stamp text-muted-foreground mr-1">RIR</span>
-              {[0, 1, 2, 3, 4].map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  disabled={r.logged}
-                  onClick={() => patch(i, { rir: v })}
-                  aria-pressed={r.rir === v}
-                  className={cn(
-                    'num h-8 min-w-9 rounded-md px-2 text-sm font-semibold transition-colors disabled:opacity-60',
-                    r.rir === v ? 'bg-foreground text-background' : v >= ex.rx.rirMin && v <= ex.rx.rirMax ? 'bg-accent text-accent-foreground' : 'bg-muted text-muted-foreground',
-                  )}
-                >
-                  {v === 4 ? '4+' : v}
-                </button>
-              ))}
-            </div>
           </li>
         ))}
-      </ol>
+      </ol>}
       {showRirHint(ex.rx.repMax) && <p className="text-muted-foreground px-4 py-2 text-xs">Most people have ~1 more rep than they think. <Why ruleIds={['T-RIR-01']} /></p>}
 
       <SwapDialog open={swapOpen} onOpenChange={setSwapOpen} ex={ex} onDone={onChanged} />
@@ -496,11 +526,23 @@ function ExerciseCard({
   );
 }
 
+function SetSummary({ index, row, units }: { index: number; row: Row; units: Units }) {
+  return (
+    <span className="num flex min-w-0 flex-1 items-baseline gap-3">
+      <span className="text-muted-foreground w-4 shrink-0 text-center text-sm font-semibold">{index + 1}</span>
+      <span className={cn('min-w-0 truncate', row.logged ? 'font-semibold' : 'text-muted-foreground')}>
+        {row.load == null ? `${row.reps} reps` : `${fmtLoad(row.load, units)} × ${row.reps}`}
+        {row.rir != null && <span className="text-muted-foreground text-sm font-normal"> · RIR {row.rir === 4 ? '4+' : row.rir}</span>}
+      </span>
+    </span>
+  );
+}
+
 function LoadInput({ value, units, step, disabled, onChange }: { value: number | null; units: Units; step: number; disabled: boolean; onChange: (kg: number | null) => void }) {
   const [text, setText] = useState(value == null ? '' : String(toDisplay(value, units)));
   return (
     <div className="flex min-w-0 flex-1 items-center sm:flex-none">
-      <button type="button" disabled={disabled} onClick={() => onChange(nudgeLoad(value ?? 0, step, -1))} className="bg-muted grid size-11 place-items-center rounded-l-lg disabled:opacity-40" aria-label="Less weight">
+      <button type="button" disabled={disabled} onClick={() => onChange(nudgeLoad(value ?? 0, step, -1))} className="bg-muted active:bg-accent grid size-11 place-items-center rounded-l-lg disabled:opacity-40" aria-label="Less weight">
         <Minus className="size-4" />
       </button>
       <Input
@@ -513,7 +555,7 @@ function LoadInput({ value, units, step, disabled, onChange }: { value: number |
         className="num h-11 min-w-0 flex-1 rounded-none sm:w-16 sm:flex-none border-x-0 px-1 text-center text-lg font-semibold disabled:opacity-100"
         aria-label={`Weight in ${units}`}
       />
-      <button type="button" disabled={disabled} onClick={() => onChange(nudgeLoad(value ?? 0, step, 1))} className="bg-muted grid size-11 place-items-center rounded-r-lg disabled:opacity-40" aria-label="More weight">
+      <button type="button" disabled={disabled} onClick={() => onChange(nudgeLoad(value ?? 0, step, 1))} className="bg-muted active:bg-accent grid size-11 place-items-center rounded-r-lg disabled:opacity-40" aria-label="More weight">
         <Plus className="size-4" />
       </button>
     </div>
@@ -528,7 +570,7 @@ function SwapDialog({ open, onOpenChange, ex, onDone }: { open: boolean; onOpenC
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="font-display text-2xl uppercase">Swap {ex.name}</DialogTitle>
+          <DialogTitle className="text-lg font-semibold">Swap {ex.name}</DialogTitle>
           <DialogDescription>Same main muscle, filtered for your equipment and injuries. The prescription stays the same.</DialogDescription>
         </DialogHeader>
         <div className="max-h-72 space-y-1.5 overflow-y-auto">
@@ -576,7 +618,7 @@ function NoteDialog({ open, onOpenChange, plannedId, note: saved, onSaved }: { o
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="font-display text-2xl uppercase">Note</DialogTitle>
+          <DialogTitle className="text-lg font-semibold">Note</DialogTitle>
         </DialogHeader>
         <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Seat height, grip, how it felt…" />
         <DialogFooter>
@@ -670,7 +712,7 @@ function WarmupRamp({ ex, sessionId, units, disabled }: { ex: LoggerExercise; se
 
   return (
     <details className="group mx-4 mt-3 rounded-lg border border-dashed px-3 py-2 text-sm">
-      <summary className="flex cursor-pointer list-none items-center gap-2 font-medium">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 font-medium">
         <Flame className="text-warn size-4" /> Warm-up ramp
         <span className="num text-muted-foreground text-xs">
           {done.size}/{ex.warmup.length}
@@ -780,7 +822,7 @@ function FinishDialog({
       });
       if (!r.ok) return void toast.error(r.error);
       onFinished();
-      toast.success('Session saved. Nice work.');
+      toast.success('Session finished. Nice work.');
       router.push('/today');
     });
 
@@ -788,7 +830,7 @@ function FinishDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-display text-3xl uppercase">Session summary</DialogTitle>
+          <DialogTitle>Finish session</DialogTitle>
           <DialogDescription className="num">
             {summary.done} of {summary.planned} planned sets done.
           </DialogDescription>
@@ -836,7 +878,7 @@ function FinishDialog({
                       return t ? { ...rest, [m]: t } : rest;
                     })
                   }
-                  className={cn('h-9 rounded-full px-3 text-sm', tags[m] === 'sore' ? 'bg-warn/20 text-warn' : tags[m] === 'pain' ? 'bg-danger/20 text-danger' : 'bg-muted')}
+                  className={cn('h-11 rounded-full px-3 text-sm', tags[m] === 'sore' ? 'bg-warn/20 text-warn' : tags[m] === 'pain' ? 'bg-danger/20 text-danger' : 'bg-muted')}
                 >
                   {MUSCLE_SHORT[m]}
                   {tags[m] && <span className="ml-1 text-xs opacity-80">· {tags[m]}</span>}

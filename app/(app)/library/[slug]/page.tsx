@@ -66,7 +66,7 @@ export default async function ExercisePage({ params }: PageProps<'/library/[slug
       <Link href="/library" className="text-muted-foreground inline-flex h-11 items-center gap-1 text-sm">
         <ArrowLeft className="size-4" /> Library
       </Link>
-      <div className="rise mt-2 space-y-4">
+      <div className="mt-2 space-y-4">
         <header>
           <p className="stamp text-muted-foreground">{CATEGORY_LABEL[ex.category]}</p>
           <h1 className="font-display mt-1 text-5xl leading-none font-extrabold uppercase">{ex.name}</h1>
@@ -93,7 +93,7 @@ export default async function ExercisePage({ params }: PageProps<'/library/[slug
         <div className="grid gap-4 md:grid-cols-[1fr_16rem]">
           <div className="space-y-4">
             <section className="bg-card rounded-2xl border p-5">
-              <h2 className="font-display text-xl font-bold uppercase">Default range</h2>
+              <h2 className="text-lg font-semibold">Default range</h2>
               <p className="num mt-1 text-lg">
                 {range.reps[0]}–{range.reps[1]} reps @ {range.rir[1]}–{range.rir[0]} RIR <Why ruleIds={['T-INT-03']} />
               </p>
@@ -102,7 +102,7 @@ export default async function ExercisePage({ params }: PageProps<'/library/[slug
             </section>
             {cues.length > 0 && (
               <section className="bg-card rounded-2xl border p-5">
-                <h2 className="font-display text-xl font-bold uppercase">Cues</h2>
+                <h2 className="text-lg font-semibold">Cues</h2>
                 <ol className="mt-2 list-decimal space-y-1 pl-5 text-[0.95rem]">
                   {cues.map((c) => (
                     <li key={c}>{c}</li>
@@ -115,7 +115,7 @@ export default async function ExercisePage({ params }: PageProps<'/library/[slug
             )}
             {mistakes.length > 0 && (
               <section className="bg-card rounded-2xl border p-5">
-                <h2 className="font-display text-xl font-bold uppercase">Common mistakes</h2>
+                <h2 className="text-lg font-semibold">Common mistakes</h2>
                 <ul className="mt-2 list-disc space-y-1 pl-5 text-[0.95rem]">
                   {mistakes.map((c) => (
                     <li key={c}>{c}</li>
@@ -125,7 +125,7 @@ export default async function ExercisePage({ params }: PageProps<'/library/[slug
             )}
             {subs.length > 0 && (
               <section className="bg-card rounded-2xl border p-5">
-                <h2 className="font-display text-xl font-bold uppercase">Substitutions</h2>
+                <h2 className="text-lg font-semibold">Substitutions</h2>
                 <ul className="mt-2 flex flex-wrap gap-2">
                   {subs.slice(0, 8).map((s) => (
                     <li key={s.id}>
@@ -138,7 +138,7 @@ export default async function ExercisePage({ params }: PageProps<'/library/[slug
               </section>
             )}
             <section className="bg-card rounded-2xl border p-5">
-              <h2 className="font-display text-xl font-bold uppercase">Your history</h2>
+              <h2 className="text-lg font-semibold">Your history</h2>
               {byDay.size === 0 ? (
                 <p className="text-muted-foreground mt-1 text-sm">Not logged yet.</p>
               ) : (

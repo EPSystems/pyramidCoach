@@ -14,7 +14,7 @@ export function ForgotForm() {
     return (
       <div className="bg-card rounded-2xl border p-5" role="status">
         <MailCheck className="text-volt size-7" aria-hidden />
-        <p className="font-display mt-3 text-2xl font-bold uppercase">Check your inbox</p>
+        <p className="mt-3 text-lg font-semibold">Check your inbox</p>
         <p className="text-muted-foreground mt-1 text-sm">
           If an account exists for {state.email ? <span className="text-foreground font-medium">{state.email}</span> : 'that email'}, we sent a link to reset your password.
         </p>

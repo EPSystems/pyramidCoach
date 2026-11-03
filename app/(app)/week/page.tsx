@@ -83,13 +83,13 @@ export default async function WeekPage({ searchParams }: PageProps<'/week'>) {
         </div>
       </PageHeader>
 
-      <div className="rise space-y-4 px-4 sm:px-6 lg:px-8">
+      <div className="space-y-4 px-4 sm:px-6 lg:px-8">
         <WeekBoard days={days} today={today} />
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
           <section className="bg-card rounded-2xl border p-5">
             <div className="flex items-baseline justify-between">
-              <h2 className="font-display text-2xl font-bold uppercase">Sets per muscle</h2>
+              <h2 className="text-lg font-semibold">Sets per muscle</h2>
               <Why ruleIds={['T-VOL-02', 'T-VOL-05', 'S-02']} />
             </div>
             <p className="text-muted-foreground text-sm">Planned this week vs target band</p>
@@ -118,7 +118,7 @@ export default async function WeekPage({ searchParams }: PageProps<'/week'>) {
           <div className="space-y-4">
             <section className="bg-card rounded-2xl border p-5">
               <div className="flex items-baseline justify-between">
-                <h2 className="font-display text-2xl font-bold uppercase">Weekly load</h2>
+                <h2 className="text-lg font-semibold">Weekly load</h2>
                 <Why ruleIds={['S-01']} />
               </div>
               <p className="font-display num mt-2 text-5xl font-extrabold">
@@ -140,7 +140,7 @@ export default async function WeekPage({ searchParams }: PageProps<'/week'>) {
 
             {block && (
               <section className="bg-card rounded-2xl border p-5">
-                <h2 className="font-display text-2xl font-bold uppercase">Block</h2>
+                <h2 className="text-lg font-semibold">Block</h2>
                 <div className="mt-3 flex items-end gap-5">
                   <div className="w-28">
                     <PyramidMeter weeks={block.weeks} current={Math.max(0, Math.min(block.weeks - 1, weekIdx ?? 0))} marks={block.intro_week ? { 0: 'intro' } : {}} />
@@ -150,7 +150,7 @@ export default async function WeekPage({ searchParams }: PageProps<'/week'>) {
                     <p className="text-muted-foreground">
                       {prettyDate(block.starts_on)} → {prettyDate(addDays(block.starts_on, block.weeks * 7 - 1))}
                     </p>
-                    {block.intro_week && <p className="text-volt">Week 1 is an intro week</p>}
+                    {block.intro_week && <p>Week 1 is an intro week</p>}
                     <p className="text-muted-foreground mt-1 text-xs">Deloads come only when your weekly review asks for one.</p>
                   </div>
                 </div>

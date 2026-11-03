@@ -68,7 +68,7 @@ export function LoginForm({ next }: { next?: string }) {
       </form>
       {unconfirmed && state.email && (
         <div className="bg-card space-y-3 rounded-2xl border p-5" role="alert">
-          <p className="font-display text-2xl font-bold uppercase">Confirm your email first</p>
+          <p className="text-lg font-semibold">Confirm your email first</p>
           <p className="text-muted-foreground text-sm">
             We sent a confirmation link to <span className="text-foreground font-medium">{state.email}</span>. Open it, then sign in.
           </p>

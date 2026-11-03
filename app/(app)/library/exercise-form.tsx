@@ -82,7 +82,7 @@ export function TraitFields({ value, onChange, incrementHint }: { value: Traits;
           <p className="mb-1 text-sm font-medium capitalize">{role} muscles</p>
           <div className="flex flex-wrap gap-1.5">
             {ALL_MUSCLES.map((m) => (
-              <Chip key={m} className="h-9 px-3" active={value[role].includes(m)} onClick={() => onChange({ ...value, [role]: toggle(value[role], m) })}>
+              <Chip key={m} className="px-3" active={value[role].includes(m)} onClick={() => onChange({ ...value, [role]: toggle(value[role], m) })}>
                 {MUSCLE_SHORT[m]}
               </Chip>
             ))}
@@ -93,7 +93,7 @@ export function TraitFields({ value, onChange, incrementHint }: { value: Traits;
         <p className="mb-1 text-sm font-medium">Traits</p>
         <div className="flex flex-wrap gap-1.5">
           {FLAGS.map((f) => (
-            <Chip key={f.key} className="h-9 px-3" active={value[f.key]} onClick={() => onChange({ ...value, [f.key]: !value[f.key] })}>
+            <Chip key={f.key} className="px-3" active={value[f.key]} onClick={() => onChange({ ...value, [f.key]: !value[f.key] })}>
               <span title={f.title}>{f.label}</span>
             </Chip>
           ))}
@@ -156,7 +156,7 @@ export function CustomExerciseDialog({ exerciseId, initial, options }: { exercis
       </DialogTrigger>
       <DialogContent className="max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-display text-2xl uppercase">{exerciseId ? 'Edit exercise' : 'Custom exercise'}</DialogTitle>
+          <DialogTitle className="text-lg font-semibold">{exerciseId ? 'Edit exercise' : 'Custom exercise'}</DialogTitle>
           <DialogDescription>Visible only to you. Muscles decide how sets are counted (1.0 primary, 0.5 secondary).</DialogDescription>
         </DialogHeader>
         <Input value={d.name} onChange={(e) => set({ name: e.target.value })} placeholder="Name" className="h-11" aria-label="Name" />
@@ -190,7 +190,7 @@ export function CustomExerciseDialog({ exerciseId, initial, options }: { exercis
           <p className="mb-1 text-sm font-medium">Equipment</p>
           <div className="flex flex-wrap gap-1.5">
             {EQ.map((e) => (
-              <Chip key={e} className="h-9 px-3 capitalize" active={d.equipment.includes(e)} onClick={() => set({ equipment: toggle(d.equipment, e) })}>
+              <Chip key={e} className="px-3 capitalize" active={d.equipment.includes(e)} onClick={() => set({ equipment: toggle(d.equipment, e) })}>
                 {e}
               </Chip>
             ))}
@@ -216,7 +216,7 @@ export function CustomExerciseDialog({ exerciseId, initial, options }: { exercis
           <p className="mb-1 text-sm font-medium">Substitutions</p>
           <div className="flex flex-wrap gap-1.5">
             {d.substitutions.map((slug) => (
-              <Chip key={slug} className="h-9 px-3" active onClick={() => set({ substitutions: d.substitutions.filter((x) => x !== slug) })}>
+              <Chip key={slug} className="px-3" active onClick={() => set({ substitutions: d.substitutions.filter((x) => x !== slug) })}>
                 {nameOf(slug)} <X className="size-3.5" aria-label="Remove" />
               </Chip>
             ))}

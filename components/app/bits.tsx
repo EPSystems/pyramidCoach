@@ -1,6 +1,7 @@
 'use client';
 
-import { HelpCircle, Minus, Plus } from 'lucide-react';
+import Link from 'next/link';
+import { ChevronLeft, HelpCircle, Minus, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { RULES, ruleSourceLabel } from '@/lib/knowledge/rules';
@@ -14,7 +15,7 @@ export function Why({ ruleIds, className, label = 'Why?' }: { ruleIds: string[];
     <Popover>
       <PopoverTrigger
         className={cn(
-          'text-muted-foreground hover:text-foreground inline-flex h-7 items-center gap-1 rounded-full border px-2 text-xs font-medium transition-colors',
+          'hit-44 text-muted-foreground hover:text-foreground inline-flex h-7 items-center gap-1 rounded-full border px-2 text-xs font-medium transition-colors',
           className,
         )}
         aria-label={`Why? Rules ${ids.join(', ')}`}
@@ -27,8 +28,8 @@ export function Why({ ruleIds, className, label = 'Why?' }: { ruleIds: string[];
           {ids.map((id) => (
             <li key={id} className="space-y-1 p-3">
               <div className="flex items-center justify-between gap-2">
-                <span className="stamp bg-accent text-accent-foreground rounded px-1.5 py-0.5">{id}</span>
-                <span className={cn('text-[0.7rem]', RULES[id].source === 'GEN' || RULES[id].source === 'APP' ? 'text-warn' : 'text-muted-foreground')}>
+                <span className="rule-id bg-accent text-accent-foreground rounded px-1.5 py-0.5">{id}</span>
+                <span className={cn('text-xs', RULES[id].source === 'GEN' || RULES[id].source === 'APP' ? 'text-warn' : 'text-muted-foreground')}>
                   {ruleSourceLabel(id)}
                 </span>
               </div>
@@ -93,14 +94,25 @@ export function Segmented<T extends string | number>({
   label: string;
   className?: string;
 }) {
+  // One tab stop for the group; the arrow keys move between options, as with native radio buttons.
+  const current = options.findIndex((o) => o.value === value);
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const dir = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+    if (!dir) return;
+    e.preventDefault();
+    const next = (Math.max(current, 0) + dir + options.length) % options.length;
+    onChange(options[next].value);
+    (e.currentTarget.children[next] as HTMLElement | undefined)?.focus();
+  };
   return (
-    <div className={cn('bg-muted/70 flex gap-1 rounded-xl p-1', className)} role="radiogroup" aria-label={label}>
-      {options.map((o) => (
+    <div className={cn('bg-muted/70 flex gap-1 rounded-xl p-1', className)} role="radiogroup" aria-label={label} onKeyDown={onKeyDown}>
+      {options.map((o, i) => (
         <button
           key={String(o.value)}
           type="button"
           role="radio"
           aria-checked={value === o.value}
+          tabIndex={i === Math.max(current, 0) ? 0 : -1}
           onClick={() => onChange(o.value)}
           className={cn(
             'num h-11 min-w-0 flex-1 rounded-lg px-2 text-sm font-semibold transition-all',
@@ -131,9 +143,15 @@ export function Chip({ active, onClick, children, className }: { active: boolean
   );
 }
 
-export function PageHeader({ kicker, title, children, className }: { kicker?: React.ReactNode; title: React.ReactNode; children?: React.ReactNode; className?: string }) {
+/** `back`: the parent screen, for pages outside the tabs (phone only; the sidebar is always there on desktop). */
+export function PageHeader({ kicker, title, children, className, back }: { kicker?: React.ReactNode; title: React.ReactNode; children?: React.ReactNode; className?: string; back?: { href: string; label: string } }) {
   return (
-    <header className={cn('flex flex-wrap items-end justify-between gap-3 px-4 pt-6 pb-4 sm:px-6 lg:px-8 lg:pt-8', className)}>
+    <header className={cn('flex flex-wrap items-end justify-between gap-3 px-4 pt-6 pb-4 sm:px-6 lg:px-8 lg:pt-8', back && 'pt-1', className)}>
+      {back && (
+        <Link href={back.href} className="text-muted-foreground -ml-1.5 inline-flex h-11 basis-full items-center gap-0.5 text-[0.95rem] font-medium lg:hidden">
+          <ChevronLeft className="size-5" /> {back.label}
+        </Link>
+      )}
       <div className="min-w-0">
         {kicker && <p className="stamp text-muted-foreground">{kicker}</p>}
         <h1 className="font-display mt-1 text-4xl leading-none font-extrabold uppercase sm:text-5xl">{title}</h1>

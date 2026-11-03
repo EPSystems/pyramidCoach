@@ -18,14 +18,14 @@ export default async function AppLayout({ children }: LayoutProps<'/'>) {
       .or(`expires_on.is.null,expires_on.gte.${ctx.today}`),
   ]);
   return (
-    <div className="relative z-10 flex min-h-dvh">
+    <div className="relative z-10 flex min-h-[calc(100dvh-env(safe-area-inset-top))]">
       <ThemeSync theme={(ctx.profile.theme as ThemePref | null) ?? null} />
       <Sidebar proposals={count ?? 0} showAdmin={ctx.isAdmin} />
       <main className="min-w-0 flex-1 pb-24 lg:pb-10">
         <OfflineBanner />
         {children}
       </main>
-      <BottomNav proposals={count ?? 0} showAdmin={ctx.isAdmin} />
+      <BottomNav proposals={count ?? 0} />
     </div>
   );
 }

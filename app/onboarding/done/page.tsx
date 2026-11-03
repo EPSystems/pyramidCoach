@@ -43,7 +43,7 @@ export default async function DonePage() {
         </div>
 
         <section className="bg-card rounded-2xl border p-5">
-          <h2 className="font-display text-2xl font-bold uppercase">
+          <h2 className="text-lg font-semibold">
             {SPLITS[block.split_key]?.name ?? block.split_key} · {firstWeek.length} lifting days
           </h2>
           <ul className="mt-3 space-y-2">
@@ -72,7 +72,7 @@ export default async function DonePage() {
         </section>
 
         <section className="bg-card rounded-2xl border p-5">
-          <h2 className="font-display text-2xl font-bold uppercase">Weekly sets per muscle</h2>
+          <h2 className="text-lg font-semibold">Weekly sets per muscle</h2>
           <div className="mt-3 grid gap-4 sm:grid-cols-[1fr_12rem]">
             <BodyMap side="both" styles={styles} interactive={false} className="max-w-sm" />
             <ul className="num grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-1">
@@ -91,7 +91,7 @@ export default async function DonePage() {
 
         {nt && (
           <section className="bg-card rounded-2xl border p-5">
-            <h2 className="font-display text-2xl font-bold uppercase">Daily nutrition targets</h2>
+            <h2 className="text-lg font-semibold">Daily nutrition targets</h2>
             <div className="num mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
               <div>
                 <p className="stamp text-muted-foreground">Calories</p>

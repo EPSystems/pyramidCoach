@@ -2,21 +2,20 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Activity, BookOpen, CalendarDays, ClipboardCheck, Dumbbell, LayoutGrid, Salad, Settings, Shield, Sparkles, TrendingUp, User } from 'lucide-react';
+import { Activity, BookOpen, CalendarDays, ClipboardCheck, Dumbbell, PersonStanding, Salad, Settings, Shield, Sparkles, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Wordmark } from './logo';
-import { useState } from 'react';
 
-const MAIN = [
+const TABS = [
   { href: '/today', label: 'Today', icon: Dumbbell },
   { href: '/week', label: 'Week', icon: CalendarDays },
-  { href: '/body', label: 'Body', icon: User },
+  { href: '/body', label: 'Body', icon: PersonStanding },
   { href: '/progress', label: 'Progress', icon: TrendingUp },
-];
-const MORE = [
-  { href: '/review', label: 'Review', icon: ClipboardCheck, badge: true },
   { href: '/nutrition', label: 'Nutrition', icon: Salad },
+];
+// Sidebar only. On a phone these open from Today, which stays the selected tab while they're on screen.
+const SECONDARY = [
+  { href: '/review', label: 'Review', icon: ClipboardCheck, badge: true },
   { href: '/generate', label: 'Generate', icon: Sparkles },
   { href: '/library', label: 'Library', icon: BookOpen },
   { href: '/checkin', label: 'Check-in', icon: Activity },
@@ -25,12 +24,12 @@ const MORE = [
 
 function Badge({ n }: { n: number }) {
   if (!n) return null;
-  return <span className="bg-volt text-volt-ink num ml-auto grid min-w-5 place-items-center rounded-full px-1.5 text-[0.7rem] font-bold">{n}</span>;
+  return <span className="bg-volt text-volt-ink num ml-auto grid min-w-5 place-items-center rounded-full px-1.5 text-xs font-bold">{n}</span>;
 }
 
 export function Sidebar({ proposals, showAdmin }: { proposals: number; showAdmin: boolean }) {
   const path = usePathname();
-  const items = [...MAIN, ...MORE, ...(showAdmin ? [{ href: '/admin', label: 'Admin', icon: Shield }] : [])];
+  const items = [...TABS, ...SECONDARY, ...(showAdmin ? [{ href: '/admin', label: 'Admin', icon: Shield }] : [])];
   return (
     <aside className="bg-card/60 sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r px-3 py-5 backdrop-blur lg:flex">
       <Link href="/today" className="px-2">
@@ -61,56 +60,35 @@ export function Sidebar({ proposals, showAdmin }: { proposals: number; showAdmin
   );
 }
 
-export function BottomNav({ proposals, showAdmin }: { proposals: number; showAdmin: boolean }) {
+export function BottomNav({ proposals }: { proposals: number }) {
   const path = usePathname();
-  const [open, setOpen] = useState(false);
-  const moreActive = [...MORE, { href: '/admin' }].some((m) => path.startsWith(m.href));
+  // A session is a focused, self-contained task with its own Back and Finish, so the tab bar steps aside.
+  if (path.startsWith('/session/')) return null;
+  const inTab = TABS.some((t) => path.startsWith(t.href));
   return (
-    <nav className="bg-background/85 pb-safe fixed inset-x-0 bottom-0 z-40 border-t backdrop-blur-lg lg:hidden" aria-label="Main">
+    <nav className="bar-material pb-safe fixed inset-x-0 bottom-0 z-40 border-t lg:hidden" aria-label="Main">
       <div className="mx-auto grid max-w-lg grid-cols-5">
-        {MAIN.map((it) => {
-          const active = path.startsWith(it.href);
+        {TABS.map((it) => {
+          const active = path.startsWith(it.href) || (!inTab && it.href === '/today');
           const Icon = it.icon;
+          const badge = it.href === '/today' ? proposals : 0;
           return (
-            <Link key={it.href} href={it.href} aria-current={active ? 'page' : undefined} className="relative flex h-16 flex-col items-center justify-center gap-1 text-[0.7rem] font-medium">
+            <Link
+              key={it.href}
+              href={it.href}
+              aria-current={active ? 'page' : undefined}
+              aria-label={badge ? `${it.label}, ${badge} proposal${badge > 1 ? 's' : ''} waiting` : undefined}
+              className="relative flex min-h-16 flex-col items-center justify-center gap-1 py-1 text-xs font-medium"
+            >
               {active && <span className="bg-volt absolute top-0 h-0.5 w-8 rounded-full" />}
-              <Icon className={cn('size-5', active ? 'text-volt' : 'text-muted-foreground')} />
+              <span className="relative">
+                <Icon className={cn('size-6', active ? 'text-volt' : 'text-muted-foreground')} strokeWidth={active ? 2.5 : 2} />
+                {badge > 0 && <span className="bg-volt text-volt-ink num absolute -top-1 -right-2.5 grid h-4.5 min-w-4.5 place-items-center rounded-full px-1 text-xs leading-none font-bold">{badge}</span>}
+              </span>
               <span className={active ? 'text-foreground' : 'text-muted-foreground'}>{it.label}</span>
             </Link>
           );
         })}
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger className="relative flex h-16 flex-col items-center justify-center gap-1 text-[0.7rem] font-medium" aria-label="More">
-            {moreActive && <span className="bg-volt absolute top-0 h-0.5 w-8 rounded-full" />}
-            <LayoutGrid className={cn('size-5', moreActive ? 'text-volt' : 'text-muted-foreground')} />
-            <span className={moreActive ? 'text-foreground' : 'text-muted-foreground'}>More</span>
-            {proposals > 0 && <span className="bg-volt absolute top-3 right-[30%] size-2 rounded-full" />}
-          </SheetTrigger>
-          <SheetContent side="bottom" className="rounded-t-3xl pb-8">
-            <SheetHeader>
-              <SheetTitle className="font-display text-2xl uppercase">More</SheetTitle>
-            </SheetHeader>
-            <div className="grid grid-cols-3 gap-2 px-4">
-              {[...MORE, ...(showAdmin ? [{ href: '/admin', label: 'Admin', icon: Shield }] : [])].map((it) => {
-                const Icon = it.icon;
-                return (
-                  <Link
-                    key={it.href}
-                    href={it.href}
-                    onClick={() => setOpen(false)}
-                    className="bg-muted/60 hover:bg-muted relative flex h-20 flex-col items-center justify-center gap-1.5 rounded-xl text-sm font-medium"
-                  >
-                    <Icon className="text-volt size-5" />
-                    {it.label}
-                    {'badge' in it && it.badge && proposals > 0 ? (
-                      <span className="bg-volt text-volt-ink num absolute top-2 right-2 grid min-w-5 place-items-center rounded-full px-1 text-[0.65rem] font-bold">{proposals}</span>
-                    ) : null}
-                  </Link>
-                );
-              })}
-            </div>
-          </SheetContent>
-        </Sheet>
       </div>
     </nav>
   );

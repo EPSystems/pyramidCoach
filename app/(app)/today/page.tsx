@@ -1,9 +1,8 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { ChevronRight, Moon, Sparkles, Trophy } from 'lucide-react';
+import { BookOpen, Check, ChevronDown, ChevronRight, ClipboardCheck, Moon, Settings, Sparkles, Trophy } from 'lucide-react';
 import { requireOnboarded } from '@/lib/server/context';
 import { blockWeekIndex, readiness, weekRange } from '@/lib/server/queries';
-import { Button } from '@/components/ui/button';
 import { PageHeader, PyramidMeter, Why } from '@/components/app/bits';
 import { CheckinCard } from '@/components/app/checkin-card';
 import { formatRx } from '@/lib/engine/prescription';
@@ -13,7 +12,7 @@ import { prettyDate, weekdayLong } from '@/lib/utils/dates';
 import { cn } from '@/lib/utils';
 import type { MuscleId } from '@/lib/engine/types';
 import { createLogger } from '@/lib/log';
-import { DrainedButton, LogSportDialog, MoveSessionDialog, StartSessionButton } from './actions-ui';
+import { ACTION_ROW, DrainedButton, LogSportDialog, MoveSessionDialog, StartSessionButton } from './actions-ui';
 
 export const metadata: Metadata = { title: 'Today' };
 
@@ -63,19 +62,8 @@ export default async function TodayPage() {
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
-        kicker={
-          block && weekIdx != null && weekIdx >= 0
-            ? `${kindLabel(block.kind)} block · week ${Math.min(weekIdx + 1, block.weeks)} of ${block.weeks}`
-            : block
-              ? `${kindLabel(block.kind)} block starts ${prettyDate(block.starts_on)}`
-              : 'No active block'
-        }
-        title={
-          <>
-            {weekdayLong(isoWeekday(today))}
-            <span className="text-muted-foreground block text-2xl sm:text-3xl">{prettyDate(today, { weekday: false })}</span>
-          </>
-        }
+        kicker={`${weekdayLong(isoWeekday(today))}, ${prettyDate(today, { weekday: false })}`}
+        title="Today"
       >
         {ready && (
           <span
@@ -89,14 +77,31 @@ export default async function TodayPage() {
             {ready.label}
           </span>
         )}
-        {block && weekIdx != null && weekIdx >= 0 && (
-          <div className="w-16">
-            <PyramidMeter weeks={block.weeks} current={Math.min(weekIdx, block.weeks - 1)} marks={block.intro_week ? { 0: 'intro' } : {}} />
-          </div>
-        )}
+        <Link href="/settings" aria-label="Settings" className="bg-muted grid size-11 place-items-center rounded-full lg:hidden">
+          <Settings className="size-5" />
+        </Link>
       </PageHeader>
 
-      <div className="rise grid gap-4 px-4 sm:px-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:px-8">
+      {/* The block as a pyramid: the app's signature, and the answer to "where am I in the plan?" */}
+      <Link href="/week" className="mx-4 mb-4 flex items-center gap-4 sm:mx-6 lg:mx-8">
+        {block && weekIdx != null && weekIdx >= 0 ? (
+          <>
+            <div className="w-20 shrink-0">
+              <PyramidMeter weeks={block.weeks} current={Math.min(weekIdx, block.weeks - 1)} marks={block.intro_week ? { 0: 'intro' } : {}} />
+            </div>
+            <p className="text-sm">
+              <span className="font-semibold">{kindLabel(block.kind)} block</span>
+              <span className="text-muted-foreground block">
+                Week {Math.min(weekIdx + 1, block.weeks)} of {block.weeks}
+              </span>
+            </p>
+          </>
+        ) : (
+          <p className="text-muted-foreground text-sm">{block ? `${kindLabel(block.kind)} block starts ${prettyDate(block.starts_on)}` : 'No active block'}</p>
+        )}
+      </Link>
+
+      <div className="grid gap-4 px-4 sm:px-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:px-8">
         <div className="space-y-4">
           {/* Today's session */}
           {todays.map((s) => {
@@ -123,7 +128,7 @@ export default async function TodayPage() {
                   ))}
                 </ol>
                 <div className="p-4">
-                  <StartSessionButton sessionId={s.id} variant={done ? 'outline' : 'default'} label={done ? 'Review session' : s.status === 'in_progress' ? 'Continue session' : 'Start'} />
+                  <StartSessionButton sessionId={s.id} variant={done ? 'outline' : 'default'} label={done ? 'Review session' : s.status === 'in_progress' ? 'Continue session' : 'Start session'} />
                 </div>
               </section>
             );
@@ -133,9 +138,10 @@ export default async function TodayPage() {
           {sportsToday.map((sp) => (
             <section key={sp.sportId} className="bg-card rounded-2xl border p-5">
               <p className="stamp text-muted-foreground">Sport today</p>
-              <h2 className="font-display mt-1 text-3xl font-bold uppercase">
-                {sp.name} <span className="text-muted-foreground text-xl">· {sp.intensity} · {sp.minutes} min</span>
-              </h2>
+              <h2 className="mt-1 text-lg font-semibold">{sp.name}</h2>
+              <p className="text-muted-foreground text-sm capitalize">
+                {sp.intensity} · {sp.minutes} min
+              </p>
               {todays.some((t) => ['lower_a', 'lower_b', 'full_a', 'full_b', 'full_c', 'full_push', 'full_pull', 'pyr_cb_qc', 'pyr_arms_gh'].includes(t.template_key)) && sp.lowerBodyLoad >= 2 ? (
                 <p className="text-warn mt-2 text-sm">
                   Legs and {sp.name.toLowerCase()} on the same day: lift after the match if you can, or move the session. <Why ruleIds={['T-SCH-03', 'T-SCH-04']} />
@@ -151,8 +157,8 @@ export default async function TodayPage() {
           {/* Rest day */}
           {todays.length === 0 && (
             <section className="bg-card rounded-2xl border p-5">
-              <Moon className="text-volt size-6" />
-              <h2 className="font-display mt-2 text-4xl font-extrabold uppercase">{sportsToday.length ? 'No lifting today' : 'Rest day'}</h2>
+              <Moon className="text-muted-foreground size-6" />
+              <h2 className="font-display mt-2 text-4xl leading-none font-extrabold uppercase">{sportsToday.length ? 'No lifting today' : 'Rest day'}</h2>
               {nextUp ? (
                 <p className="text-muted-foreground mt-1">
                   Next: <span className="text-foreground font-medium">{nextUp.title}</span> on {prettyDate(nextUp.scheduled_on)}.
@@ -201,15 +207,20 @@ export default async function TodayPage() {
             </section>
           ))}
 
-          <div className="grid gap-2 sm:grid-cols-2">
-            {todays[0] && todays[0].status === 'planned' && !lighter && <DrainedButton sessionId={todays[0].id} />}
-            {todays[0] && todays[0].status === 'planned' && <MoveSessionDialog sessionId={todays[0].id} title={todays[0].title} dates={moveDates} />}
-            <Button asChild variant="outline" className="justify-start">
-              <Link href="/generate">
-                <Sparkles /> Generate a workout
-              </Link>
-            </Button>
+          {/* A grouped list, not a stack of equal buttons: Start stays the one prominent action on this screen. */}
+          <div className="bg-card divide-y overflow-hidden rounded-2xl border">
+            {todays[0] && todays[0].status === 'planned' && !lighter && <DrainedButton sessionId={todays[0].id} asRow />}
+            {todays[0] && todays[0].status === 'planned' && <MoveSessionDialog sessionId={todays[0].id} title={todays[0].title} dates={moveDates} asRow />}
             <LogSportDialog sports={ctx.sports.map((s) => ({ id: s.sportId, name: s.name, minutes: s.minutes }))} defaultSport={sportsToday[0]?.sportId} />
+            <Link href="/generate" className={ACTION_ROW}>
+              <Sparkles className="text-muted-foreground size-5" /> <span className="flex-1">Generate a workout</span> <ChevronRight className="text-muted-foreground size-4" />
+            </Link>
+            <Link href="/review" className={ACTION_ROW}>
+              <ClipboardCheck className="text-muted-foreground size-5" /> <span className="flex-1">Weekly review</span> <ChevronRight className="text-muted-foreground size-4" />
+            </Link>
+            <Link href="/library" className={ACTION_ROW}>
+              <BookOpen className="text-muted-foreground size-5" /> <span className="flex-1">Exercise library</span> <ChevronRight className="text-muted-foreground size-4" />
+            </Link>
           </div>
         </div>
 
@@ -226,11 +237,18 @@ export default async function TodayPage() {
             </Link>
           )}
 
-          <section className="bg-card rounded-2xl border p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="font-display text-2xl font-bold uppercase">Morning check-in</h2>
-              {checkinDone && <span className="stamp text-ok">Done</span>}
-            </div>
+          {/* Done for the day: folded away so the session stays the focus, one tap from an edit. */}
+          <details className="bg-card group rounded-2xl border" open={!checkinDone}>
+            <summary className="flex min-h-14 cursor-pointer list-none items-center gap-2 px-5 py-3">
+              <h2 className="flex-1 text-lg font-semibold">Morning check-in</h2>
+              {checkinDone && (
+                <span className="stamp text-ok inline-flex items-center gap-1">
+                  <Check className="size-4" /> Done
+                </span>
+              )}
+              <ChevronDown className="text-muted-foreground size-4 transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="px-5 pb-5">
             <CheckinCard
               compact
               units={ctx.units}
@@ -243,7 +261,11 @@ export default async function TodayPage() {
                 bodyweightKg: checkin?.bodyweight_kg ?? null,
               }}
             />
-          </section>
+            <Link href="/checkin" className="text-muted-foreground mt-2 flex h-11 items-center justify-center text-sm font-medium">
+              See the last 7 days
+            </Link>
+            </div>
+          </details>
         </div>
       </div>
     </div>

@@ -29,8 +29,8 @@ export const viewport: Viewport = {
   ],
 };
 
-// Dark by default (gym lighting); "system" and "light" are opt-in in Settings.
-const themeScript = `(function(){try{var t=localStorage.getItem('pc-theme')||'dark';var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){document.documentElement.classList.add('dark');}})();`;
+// Follows the system until the user picks "light" or "dark" in Settings.
+const themeScript = `(function(){var s=matchMedia('(prefers-color-scheme: dark)').matches;try{var t=localStorage.getItem('pc-theme')||'system';var d=t==='dark'||(t==='system'&&s);document.documentElement.classList.toggle('dark',d);}catch(e){document.documentElement.classList.toggle('dark',s);}})();`;
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
@@ -38,7 +38,7 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="grain min-h-dvh">
+      <body className="min-h-dvh">
         <Providers>
           <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
           <Toaster position="top-center" richColors />

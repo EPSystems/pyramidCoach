@@ -9,7 +9,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-body);
   --font-mono: var(--font-mono-stamp);
-  --font-heading: var(--font-display);
+  --font-heading: var(--font-body);
   --font-display: var(--font-display);
   --color-ring: var(--ring);
   --color-input: var(--input);
@@ -54,23 +54,23 @@
   --card-foreground: oklch(0.2 0.012 95);
   --popover: oklch(0.99 0.005 95);
   --popover-foreground: oklch(0.2 0.012 95);
-  --primary: oklch(0.2 0.012 95);
-  --primary-foreground: oklch(0.97 0.01 95);
+  --primary: oklch(0.5 0.14 125);
+  --primary-foreground: oklch(0.98 0.02 120);
   --secondary: oklch(0.925 0.01 95);
   --secondary-foreground: oklch(0.24 0.012 95);
   --muted: oklch(0.925 0.01 95);
   --muted-foreground: oklch(0.47 0.012 95);
   --accent: oklch(0.92 0.06 120);
   --accent-foreground: oklch(0.25 0.05 125);
-  --destructive: oklch(0.56 0.2 30);
+  --destructive: oklch(0.52 0.2 30);
   --border: oklch(0.86 0.012 95);
   --input: oklch(0.86 0.012 95);
-  --ring: oklch(0.55 0.15 125);
-  --volt: oklch(0.55 0.15 125);
+  --ring: oklch(0.5 0.14 125);
+  --volt: oklch(0.5 0.14 125);
   --volt-ink: oklch(0.98 0.02 120);
-  --warn: oklch(0.62 0.15 70);
-  --danger: oklch(0.56 0.2 30);
-  --ok: oklch(0.55 0.13 150);
+  --warn: oklch(0.52 0.12 70);
+  --danger: oklch(0.52 0.2 30);
+  --ok: oklch(0.48 0.12 150);
   --steel: oklch(0.6 0.012 95);
   /* chart categorical slots validated (dataviz validate_palette, light surface) */
   --chart-1: #5f7f12;
@@ -79,7 +79,6 @@
   --chart-4: oklch(0.56 0.2 30);
   --chart-5: oklch(0.47 0.012 95);
   --radius: 0.75rem;
-  --grain-opacity: 0.035;
   color-scheme: light;
 }
 
@@ -115,7 +114,6 @@
   --chart-3: oklch(0.82 0.15 75);
   --chart-4: oklch(0.68 0.19 30);
   --chart-5: oklch(0.7 0.012 95);
-  --grain-opacity: 0.05;
   color-scheme: dark;
 }
 
@@ -125,13 +123,35 @@
   }
   html {
     -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    /* Rapid taps on steppers never zoom the page; pinch zoom still works. */
+    touch-action: manipulation;
   }
+  /* iOS Text Size: rem follows the system setting (17 px at the default size). */
+  @supports (font: -apple-system-body) {
+    html {
+      font: -apple-system-body;
+    }
+  }
+  /* viewport-fit=cover draws under the status bar and home indicator: the app keeps its content clear of them. */
   body {
     @apply bg-background text-foreground antialiased;
-    font-size: 16px;
+    font-family: var(--font-body);
+    font-size: 1rem;
     font-feature-settings: 'ss01';
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
   }
-  h1, h2, h3, .font-display {
+  /* Scrolled content never shows through the status bar. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 45;
+    height: env(safe-area-inset-top);
+    background: var(--background);
+    pointer-events: none;
+  }
+  .font-display {
     font-family: var(--font-display);
     letter-spacing: 0.01em;
   }
@@ -147,18 +167,7 @@
   font-feature-settings: 'tnum';
 }
 
-/* Faint grain over the whole app for atmosphere. */
-.grain::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  opacity: var(--grain-opacity);
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-}
-
-/* Barbell-knurl hatch used on card headers and the active nav item. */
+/* Barbell-knurl hatch: only on today's session card. */
 .knurl {
   background-image: repeating-linear-gradient(
       45deg,
@@ -168,12 +177,60 @@
     repeating-linear-gradient(-45deg, color-mix(in oklch, var(--foreground) 7%, transparent) 0 1px, transparent 1px 6px);
 }
 
-/* Rule-ID "stamp". */
+/* Small supporting label (kickers, stat names). */
 .stamp {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+/* A rule citation in the "Why?" popover: the one place the mono face appears. */
+.rule-id {
   font-family: var(--font-mono-stamp);
-  font-size: 0.68rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+}
+
+/* Grows a small control's touch area to 44 px without changing how it looks. */
+.hit-44 {
+  position: relative;
+}
+.hit-44::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 2.75rem);
+  height: max(100%, 2.75rem);
+  transform: translate(-50%, -50%);
+}
+
+/* Translucent floating bars (tab bar, logger header): solid when transparency is reduced. */
+.bar-material {
+  background: color-mix(in oklch, var(--background) 85%, transparent);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .bar-material {
+    background: var(--background);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* Increase Contrast: stronger secondary text and control edges. */
+@media (prefers-contrast: more) {
+  :root {
+    --muted-foreground: oklch(0.34 0.012 95);
+    --border: oklch(0.55 0.012 95);
+    --input: oklch(0.45 0.012 95);
+  }
+  .dark {
+    --muted-foreground: oklch(0.85 0.012 95);
+    --border: oklch(0.6 0.008 110);
+    --input: oklch(0.7 0.008 110);
+  }
 }
 
 @keyframes rise {
@@ -183,12 +240,9 @@
 .rise > * {
   animation: rise 0.42s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
-.rise > *:nth-child(2) { animation-delay: 0.05s; }
-.rise > *:nth-child(3) { animation-delay: 0.1s; }
-.rise > *:nth-child(4) { animation-delay: 0.15s; }
-.rise > *:nth-child(5) { animation-delay: 0.2s; }
-.rise > *:nth-child(6) { animation-delay: 0.25s; }
-.rise > *:nth-child(n + 7) { animation-delay: 0.3s; }
+.rise > *:nth-child(2) { animation-delay: 0.06s; }
+.rise > *:nth-child(3) { animation-delay: 0.12s; }
+.rise > *:nth-child(n + 4) { animation-delay: 0.18s; }
 
 @keyframes pop {
   0% { transform: scale(1); }
@@ -198,7 +252,15 @@
 .pop { animation: pop 0.25s ease-out; }
 
 @media (prefers-reduced-motion: reduce) {
-  .rise > *, .pop { animation: none !important; }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 .pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 0px); }

@@ -59,12 +59,12 @@ export default async function ReviewPage() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <PageHeader kicker={`Week of ${prettyDate(weekStart)}`} title="Weekly review" />
-      <div className="rise grid gap-4 px-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:px-8">
+      <PageHeader kicker={`Week of ${prettyDate(weekStart)}`} title="Weekly review" back={{ href: '/today', label: 'Today' }} />
+      <div className="grid gap-4 px-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:px-8">
         <div className="space-y-4">
           <section className="bg-card rounded-2xl border p-5">
             <div className="flex items-baseline justify-between">
-              <h2 className="font-display text-2xl font-bold uppercase">How was the week?</h2>
+              <h2 className="text-lg font-semibold">How was the week?</h2>
               <Why ruleIds={['T-FAT-01', 'T-FAT-02']} />
             </div>
             <p className="text-muted-foreground text-sm">Pre-filled from your logs. Confirm or flip, then submit.</p>
@@ -76,7 +76,7 @@ export default async function ReviewPage() {
           </section>
 
           <section className="bg-card rounded-2xl border p-5">
-            <h2 className="font-display text-2xl font-bold uppercase">Week summary</h2>
+            <h2 className="text-lg font-semibold">Week summary</h2>
             <dl className="num mt-3 grid grid-cols-3 gap-3">
               <div>
                 <dt className="stamp text-muted-foreground">Sessions</dt>
@@ -107,7 +107,7 @@ export default async function ReviewPage() {
           {nutritionNotes.length > 0 && (
             <section className="bg-card rounded-2xl border p-5">
               <div className="flex items-baseline justify-between">
-                <h2 className="font-display text-2xl font-bold uppercase">Nutrition check</h2>
+                <h2 className="text-lg font-semibold">Nutrition check</h2>
                 <Why ruleIds={['N-WGT-02', 'N-ADJ-02']} />
               </div>
               <ul className="text-muted-foreground mt-2 list-disc space-y-1 pl-5 text-sm">
@@ -120,7 +120,7 @@ export default async function ReviewPage() {
         </div>
 
         <div className="space-y-4">
-          <h2 className="font-display text-2xl font-bold uppercase">
+          <h2 className="text-lg font-semibold">
             Proposals {pending.length > 0 && <span className="text-volt">({pending.length})</span>}
           </h2>
           {pending.length === 0 && <p className="bg-card text-muted-foreground rounded-2xl border p-5 text-sm">Nothing waiting. Submit your weekly review to get this week’s recommendations.</p>}

@@ -27,7 +27,7 @@ export function ExerciseHistory({ exercises, unit }: { exercises: HistoryExercis
   const cur = exercises.find((e) => e.id === sel);
   return (
     <section className="bg-card rounded-2xl border p-5">
-      <h2 className="font-display text-2xl font-bold uppercase">Any exercise</h2>
+      <h2 className="text-lg font-semibold">Any exercise</h2>
       {exercises.length === 0 ? (
         <p className="text-muted-foreground py-6 text-sm">Your logged exercises will show up here.</p>
       ) : (

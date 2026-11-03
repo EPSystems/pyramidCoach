@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Check } from 'lucide-react';
+import { Check, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { saveCheckin } from '@/lib/actions/training';
 import { Button } from '@/components/ui/button';
@@ -70,8 +70,9 @@ export function CheckinCard({ initial, units, compact, onSaved, hideWeight }: { 
         <Segmented label="Stress 1 to 5" value={stress} onChange={setStress} options={scale} />
       </div>
       <div>
-        <button type="button" onClick={() => setShowMap(!showMap)} className="text-sm font-medium underline-offset-4 hover:underline" aria-expanded={showMap}>
-          Anything sore? {Object.keys(sore).length > 0 && <span className="text-warn">({Object.keys(sore).length})</span>}
+        <button type="button" onClick={() => setShowMap(!showMap)} className="flex min-h-11 w-full items-center justify-between gap-2 text-left text-sm font-medium" aria-expanded={showMap}>
+          <span>Anything sore? {Object.keys(sore).length > 0 && <span className="text-warn">({Object.keys(sore).length})</span>}</span>
+          <ChevronDown className={cn('text-muted-foreground size-4 transition-transform', showMap && 'rotate-180')} />
         </button>
         {showMap && (
           <div className="mt-2">
@@ -85,7 +86,7 @@ export function CheckinCard({ initial, units, compact, onSaved, hideWeight }: { 
             {Object.keys(sore).length > 0 && (
               <div className="mt-2 flex flex-wrap justify-center gap-1.5">
                 {Object.entries(sore).map(([m, v]) => (
-                  <button key={m} type="button" onClick={() => cycle(m as MuscleId)} className={cn('rounded-full px-2.5 py-1 text-xs font-medium', v === 'pain' ? 'bg-danger/20 text-danger' : 'bg-warn/20 text-warn')}>
+                  <button key={m} type="button" onClick={() => cycle(m as MuscleId)} className={cn('min-h-11 rounded-full px-3 text-sm font-medium', v === 'pain' ? 'bg-danger/20 text-danger' : 'bg-warn/20 text-warn')}>
                     {MUSCLE_SHORT[m as MuscleId]}: {v}
                   </button>
                 ))}

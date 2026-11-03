@@ -28,7 +28,7 @@ export default async function AdminPage() {
   const { data: exercises } = log.db('select exercises (global)', exercisesRes);
   return (
     <div className="mx-auto max-w-5xl">
-      <PageHeader kicker="Owner" title="Admin" />
+      <PageHeader back={{ href: '/settings', label: 'Settings' }} kicker="Owner" title="Admin" />
       <div className="space-y-4 px-4 sm:px-6 lg:px-8">
         <AdminClient
           isOwner={ctx.isOwner}
@@ -51,7 +51,7 @@ export default async function AdminPage() {
           }))}
         />
         <section className="bg-card rounded-2xl border p-5">
-          <h2 className="font-display text-2xl font-bold uppercase">Sport catalog</h2>
+          <h2 className="text-lg font-semibold">Sport catalog</h2>
           <table className="num mt-2 w-full text-sm">
             <thead className="text-muted-foreground text-left text-xs">
               <tr>
@@ -76,7 +76,7 @@ export default async function AdminPage() {
           </table>
         </section>
         <section className="bg-card rounded-2xl border p-5">
-          <h2 className="font-display text-2xl font-bold uppercase">Rule sources ({rules?.length})</h2>
+          <h2 className="text-lg font-semibold">Rule sources ({rules?.length})</h2>
           <ul className="mt-2 max-h-96 divide-y overflow-y-auto text-sm">
             {(rules ?? []).map((r) => (
               <li key={r.id} className="grid grid-cols-[6rem_1fr] gap-2 py-1.5">
